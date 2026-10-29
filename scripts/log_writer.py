@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Copy stdin to a log file, rotating it by size: scripts/piport_service.sh's log, in place of
 tee. One writer for every pi-port process, so rotation is safe.
 

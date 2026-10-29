@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Adapted from Frigate's frigate/track/stationary_classifier.py (StationaryMotionClassifier); MIT text in LICENSES/MIT-frigate.txt.
 # Changes for pi-port: per-track state in a plain dict instead of the classifier's id maps;
 # a grayscale frame instead of a YUV one; cv2.GaussianBlur instead of scipy.

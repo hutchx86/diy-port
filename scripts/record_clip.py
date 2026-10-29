@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Record a paired camera's stream for piport/replay.py.
 
     scripts/record_clip.py 02000000000A 60 parked-car

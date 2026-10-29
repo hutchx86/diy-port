@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """replay.py on synthetic clips (a white box crossing a black frame) with a fake detector
 that finds it, and record_clip.py's log scan. ffmpeg tests are skipped if it's absent."""
 import importlib.util

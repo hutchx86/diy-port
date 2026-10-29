@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Adapted from Frigate's frigate/motion/improved_motion.py (ImprovedMotionDetector); MIT text in LICENSES/MIT-frigate.txt.
 # Changes for pi-port: no PTZ handling or debug images; cv2.GaussianBlur instead of scipy;
 # the mask is built from Protect's motion zones; settings are plain arguments.

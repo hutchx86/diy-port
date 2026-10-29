@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # launchd agent for macOS: install|restart|stop|start|status|logs|uninstall.
 # Usage, the sudoers rule and state paths: piport/README.md.
 set -u

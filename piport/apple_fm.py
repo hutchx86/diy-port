@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Vehicle type and colour from Apple's on-device foundation model (macOS 27+).
 
 COCO has no SUV or van, and the HSV colour vote calls a black car in daylight blue or gray

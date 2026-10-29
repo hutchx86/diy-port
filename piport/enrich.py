@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Second-stage enrichment on top of the detector's person/vehicle/animal boxes.
 
   * vehicle type + colour -> descriptor ``attributes`` ({val, confidence} per key,

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Adapted from Frigate's frigate/track/norfair_tracker.py (distance, per-type settings); MIT text in LICENSES/MIT-frigate.txt.
 # Changes for pi-port: Norfair only associates detections with objects; pi-port's tracker
 # keeps confirmation, parking, events and miss tolerance. No PTZ or re-ID settings.

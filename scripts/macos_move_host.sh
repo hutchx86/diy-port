@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Move a running AI Port to another Mac with its identity: export | import.
 # See piport/README.md (the MAC must be pinned on the new host).
 set -euo pipefail

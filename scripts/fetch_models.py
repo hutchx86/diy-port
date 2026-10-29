@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Fetch the model assets a detector backend needs (see piport/detectors/).
 
   rknn     the open Rockchip YOLOv5s model (ONNX + anchors + COCO labels +

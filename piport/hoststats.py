@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 """Host load once a minute: CPU per process group (pi-port, Frigate, containers, other) plus
 GPU/NPU load and power where readable; 1.0 = one core busy for the minute.
 

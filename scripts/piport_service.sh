@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Run pi-port on macOS; restart on exit or ~/.piport-restart, settings in ~/.piport.env.
 # The launchd wrapper is scripts/macos_launchd.sh; see piport/README.md.
 set -u

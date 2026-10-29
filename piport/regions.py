@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
-# Copyright (C) 2026 The pi-port project
+# Copyright (C) 2026 The Pi-Port project
 # Adapted from Frigate's frigate/util/object.py and util/image.py (regions, reduce_detections); MIT text in LICENSES/MIT-frigate.txt.
 # Changes for pi-port: detections are dicts ({"label", "score", "box", "region"}); NMS is
 # plain numpy rather than cv2.dnn; no learned region grid (a fixed startup scan instead).
