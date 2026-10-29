@@ -440,7 +440,10 @@ def check_clips(paths, out=sys.stdout, timeout=CLIP_TIMEOUT_S):
         clip = next((c for c in clips if os.path.exists(c)), None)
         if not expect or clip is None:
             continue
-        env = dict(os.environ, **{k: str(v) for k, v in (settings.get("env") or {}).items()})
+        # The sidecar's env is the only AIPORT_* source: the caller's settings must not
+        # change what a clip is expected to prove.
+        env = {k: v for k, v in os.environ.items() if not k.startswith("AIPORT_")}
+        env.update({k: str(v) for k, v in (settings.get("env") or {}).items()})
         cmd = [sys.executable, os.path.abspath(__file__), clip, "--json"] + list(
             settings.get("args") or [])
         t0 = _time.monotonic()
