@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 hutchx86
-# ONNX->RKNN conversion recipe adapted from Rockchip's rknn_model_zoo
-# (examples/yolov5), Apache-2.0.
+# ONNX->RKNN recipe adapted from Rockchip's rknn_model_zoo (examples/yolov5), Apache-2.0.
 import sys
 from rknn.api import RKNN
 

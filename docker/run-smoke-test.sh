@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 hutchx86
 #
-# Build the CPU image, run a no-hardware smoke test on host networking, and check
-# all four components are up (binds :443/:10001, broadcasts discovery -- lab LAN only).
+# Build the CPU image and run the no-hardware smoke test on host networking.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"

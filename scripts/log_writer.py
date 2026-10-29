@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """Copy stdin to a log file, rotating it by size: scripts/piport_service.sh's log, in place of
 tee. One writer for every pi-port process, so rotation is safe.
 
@@ -35,6 +36,9 @@ class RotatingLog:
         self.open()
 
     def open(self):
+        self._reopen()
+
+    def _reopen(self):
         if os.path.exists(self.path) and os.path.getsize(self.path) >= self.max_bytes:
             rotate(self.path, self.keep)
         self.f = open(self.path, "ab")
@@ -46,9 +50,7 @@ class RotatingLog:
         self.size += len(line)
         if self.size >= self.max_bytes:
             self.f.close()
-            rotate(self.path, self.keep)
-            self.f = open(self.path, "ab")
-            self.size = 0
+            self._reopen()
 
     def close(self):
         if self.f:

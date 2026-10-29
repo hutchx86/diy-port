@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """Replay a recorded clip through pi-port's detector and tracker, offline.
 
 Runs the clip through the same ffmpeg filter graph as a live camera, feeds each frame to
@@ -61,13 +62,17 @@ def load_sidecar(clip_path, sidecar_path=None):
         return json.load(f)
 
 
-def probe_size(path):
-    """(width, height) of the clip's video, or None."""
+def _probe(path, entries):
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-         "stream=width,height", "-of", "csv=p=0", path], capture_output=True, text=True)
+         f"stream={entries}", "-of", "csv=p=0", path], capture_output=True, text=True)
+    return out.stdout.strip()
+
+
+def probe_size(path):
+    """(width, height) of the clip's video, or None."""
     try:
-        w, h = out.stdout.strip().split(",")[:2]
+        w, h = _probe(path, "width,height").split(",")[:2]
         return int(w), int(h)
     except ValueError:
         return None
@@ -75,10 +80,7 @@ def probe_size(path):
 
 def probe_codec(path):
     """The clip's video codec ('h264', 'hevc'), or None."""
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-         "stream=codec_name", "-of", "csv=p=0", path], capture_output=True, text=True)
-    return out.stdout.strip().lower() or None
+    return _probe(path, "codec_name").lower() or None
 
 
 def clip_frames(av, path, width=None, height=None):
@@ -220,7 +222,7 @@ def replay(av, frames, settings=None, start_ms=0, settle_s=5.0, startup=False, s
 
     patches = {
         "time": _ClipTime(),
-        "send_msg": lambda ws, fn, payload, **kw: (
+        "send_msg": lambda ws, fn, payload, **_: (
             sent.append((now[0], payload)) if fn == "EventSmartDetect" else None),
         "LEAVE_FALLBACK_S": 10 ** 9,             # no snapshot requests will come
         "_frame_jpeg": lambda *a, **k: None,     # no JPEG pipe offline

@@ -1,21 +1,8 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Run pi-port as a launchd agent under your own account on macOS: started at login, restarted if
-# it exits, logging to ~/piport.log with rotation (scripts/piport_service.sh does the work).
-#
-#   scripts/macos_launchd.sh install     write ~/Library/LaunchAgents/local.piport.plist, start it
-#   scripts/macos_launchd.sh restart     restart pi-port (touch ~/.piport-restart also works)
-#   scripts/macos_launchd.sh stop        stop it until the next start/install or login
-#   scripts/macos_launchd.sh start       start it again
-#   scripts/macos_launchd.sh status      launchd's view and the last log lines
-#   scripts/macos_launchd.sh logs        follow ~/piport.log
-#   scripts/macos_launchd.sh uninstall   stop it and remove the plist
-#
-# No sudo: macOS lets any user bind ports below 1024. Files an earlier `sudo` run left owned by
-# root have to be handed back first; install says which and how. The host stats line's GPU and
-# power figures need powermetrics as root: allow just that command with
-#   echo "$USER ALL=(root) NOPASSWD: /usr/bin/powermetrics" | sudo tee /etc/sudoers.d/piport-powermetrics
-#   sudo chmod 440 /etc/sudoers.d/piport-powermetrics && sudo visudo -cf /etc/sudoers.d/piport-powermetrics
+# Copyright (C) 2026 The pi-port project
+# launchd agent for macOS: install|restart|stop|start|status|logs|uninstall.
+# Usage, the sudoers rule and state paths: piport/README.md.
 set -u
 
 LABEL=${PIPORT_LAUNCHD_LABEL:-local.piport}

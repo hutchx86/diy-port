@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """Protect's known-faces DB (UpdateFaceDBRequest), and matching face embeddings against it.
 
 The download is a tar of `known/uiface.json` (subject, instance and name maps) and

@@ -1,19 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Host load once a minute, beside each camera's frame stats: who used the CPU and how busy
-the GPU and neural accelerator were. Live 17:59 every camera's pass time rose from ~2 ms to
-36-59 ms at once while three cameras were busy and Frigate shared the Mac; the frame stats
-alone couldn't say who was using it.
+# Copyright (C) 2026 The pi-port project
+"""Host load once a minute: CPU per process group (pi-port, Frigate, containers, other) plus
+GPU/NPU load and power where readable; 1.0 = one core busy for the minute.
 
-CPU per group, on macOS and Linux, comes from each process's CPU time (ps), as a delta over
-the minute: pi-port (this instance's process tree: its ffmpeg pulls and helpers), Frigate
-(processes whose command line names it, and their children), OrbStack on macOS and Docker
-containers on Linux (the camera proxies), and everything else. 1.0 = one core busy for the
-whole minute.
-
-The accelerators: on macOS, powermetrics (a one-second sample: cores and GPU busy %, CPU, GPU
-and ANE power), which needs root, as pi-port runs; on Linux, cores busy from /proc/stat, the
-RK3588 NPU's load (/sys/kernel/debug/rknpu/load, root) and a devfreq GPU's load where they can
-be read. What a host can't report is left out of the line.
+CPU time comes from ps on both platforms. Accelerators: powermetrics on macOS (root or a
+sudoers rule), /proc/stat, the RK3588 NPU load and devfreq on Linux. Anything a host can't
+report is left out.
 """
 import glob
 import logging
@@ -156,9 +148,8 @@ def parse_powermetrics(data):
     return out
 
 
-# powermetrics needs root. Not running as root (the launchd agent runs as the user), it's run
-# through `sudo -n`, which works only with a sudoers rule for it (see scripts/macos_launchd.sh);
-# without one the GPU and power figures are left out from the first failure on.
+# powermetrics needs root, so as a user it runs through `sudo -n`; without a sudoers rule the
+# GPU and power figures are omitted (see piport/README.md).
 _powermetrics_denied = []
 
 
@@ -228,9 +219,9 @@ class _LinuxSampler:
         if now and self._last and now[1] > self._last[1]:
             out["cpu_busy"] = (now[0] - self._last[0]) / (now[1] - self._last[1])
         self._last = now
-        npu = _read(RKNPU_LOAD)
-        if npu and parse_rknpu_load(npu) is not None:
-            out["npu_busy"] = parse_rknpu_load(npu)
+        npu_load = parse_rknpu_load(_read(RKNPU_LOAD) or "")
+        if npu_load is not None:
+            out["npu_busy"] = npu_load
         for path in sorted(glob.glob("/sys/class/devfreq/*gpu*/load")):
             load = parse_devfreq_load(_read(path) or "")
             if load is not None:

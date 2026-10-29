@@ -103,9 +103,8 @@ def get_bool(cfg, key):
     return str(cfg.get(key, "")).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Secrets that show up in logged payloads/headers: camera RTSP credentials
-# (OnvifStreamControl streamUrl), the console's login password for this
-# device, and adoption tokens.
+# Secrets that appear in logged payloads/headers: camera RTSP credentials, the console's
+# password, and adoption tokens.
 _REDACTIONS = [
     # URL userinfo, greedily through the last '@' so a password containing '@'
     # cannot leave its tail in the log.

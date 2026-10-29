@@ -551,11 +551,8 @@ class TestCameraEvent(Base):
                 if tr["objectType"] == "face"}
 
     def test_walking_up_face_stays_one_face_track(self):
-        # Live 09:43 on Camera C: a face read once a second grew from 56 to 92 px and moved
-        # down and across between reads, and became face tracks 5, 7 and 8.
-        # face 20 -> 28 -> 36 units wide, its centre ~200 units further each read: past the
-        # nearest-match radius (3x its size + 30), as live
-        # (the person track itself stays one track: its boxes overlap read to read)
+        # A face read once a second grows and moves between reads, beyond the nearest-match
+        # radius; it must stay one face track while the person track overlaps.
         steps = [([400, 100, 300, 800], [420, 150, 20, 20]),
                  ([380, 120, 330, 820], [600, 330, 28, 28]),
                  ([350, 140, 360, 840], [420, 560, 36, 36])]
@@ -823,7 +820,6 @@ class TestCameraEvent(Base):
         self.assertEqual(sent_embeds(), [True])
         self.sent.clear()
         stale = dict(face, fresh_read=False)            # reused snapshot: not a new read
-        tracks = av._motion_state["D"]["tracks"]
         (fid, ftr), = self.face_tracks().items()
         self.assertEqual(ftr["embed_reads"], 2)
         self.tick(self.PERSON, stale)
@@ -1050,9 +1046,8 @@ class TestCameraEvent(Base):
         self.assertEqual(av._parse_true_thresh("x,person=0.75"), (0.7, {"person": 0.75}))
 
     def test_sedan_seen_twice_makes_no_event_under_min_initialized(self):
-        # Live 14:51 (Camera B): a sedan crossing the far road was detected on 2 frames
-        # (0.85, 0.78). With Frigate's min_initialized (0.5 s of detections) that is too few,
-        # as in Frigate; region crops now see far-road cars on more frames (9 at 17:20).
+        # A far-road sedan seen on 2 frames is too few for min_initialized, as in Frigate;
+        # region crops see such cars on more frames.
         for name, value in (("MIN_HITS", 2), ("MIN_INITIALIZED", 5)):   # the live rules
             patcher = mock.patch.object(av, name, value)
             patcher.start()
@@ -1787,7 +1782,7 @@ class TestPollLoop(Base):
                                                      _t.sleep(0.01)))
         patcher.start()
         self.addCleanup(patcher.stop)
-        av._start_motion_detector(None, "PL", "ip", 1, "uri", preserve_tracks=True)
+        av._start_motion_detector(None, "PL", preserve_tracks=True)
         self.addCleanup(av._stop_motion_detector, "PL", True)
         self.addCleanup(av._latest_frame_time.pop, "PL", None)
         self.addCleanup(av._latest_frame_seq.pop, "PL", None)
@@ -2279,7 +2274,7 @@ class TestMotionLoopLifecycle(Base):
 
     def test_each_frame_analysed_once(self):
         av._latest_frame_time["D"] = (1, 1)
-        av._start_motion_detector(None, "D", "ip", 1, "uri")
+        av._start_motion_detector(None, "D")
         time.sleep(0.2)
         self.assertEqual(self.ticks, ["D"])        # same frame: analysed once, then waits
         av._latest_frame_time["D"] = (2, 2)
@@ -2290,8 +2285,8 @@ class TestMotionLoopLifecycle(Base):
     def test_restart_does_not_leave_overlapping_loops(self):
         # A stream restart calls _start_motion_detector again; the previous loop
         # must be stopped AND joined, or both mutate the same track state.
-        av._start_motion_detector(None, "D", "ip", 1, "uri")
-        av._start_motion_detector(None, "D", "ip", 1, "uri")  # simulate restart
+        av._start_motion_detector(None, "D")
+        av._start_motion_detector(None, "D")  # simulate restart
         self.assertEqual(len(av._motion_poll_stop), 1)
         self.assertEqual(len(av._motion_poll_thread), 1)
         live = av._motion_poll_thread["D"]
@@ -2304,9 +2299,9 @@ class TestMotionLoopLifecycle(Base):
         self.assertNotIn("D", av._motion_poll_thread)
 
     def test_superseded_loop_exits(self):
-        av._start_motion_detector(None, "D", "ip", 1, "uri")
+        av._start_motion_detector(None, "D")
         first = av._motion_poll_thread["D"]
-        av._start_motion_detector(None, "D", "ip", 1, "uri")
+        av._start_motion_detector(None, "D")
         time.sleep(0.2)
         self.assertFalse(first.is_alive())  # old loop bailed out, not still ticking
         av._stop_motion_detector("D")
@@ -2319,7 +2314,7 @@ class TestMotionLoopLifecycle(Base):
                                                  "first_shown_ms": 1, "miss_count": 0,
                                                  "prev_center": (5, 5), "crossed_lines": {}}},
                                   "next_tracker_id": 2}
-        av._start_motion_detector(None, "D", "ip", 1, "uri", preserve_tracks=True)
+        av._start_motion_detector(None, "D", preserve_tracks=True)
         self.assertIn("D", av._motion_state)
         self.assertIn(1, av._motion_state["D"]["tracks"])
         av._stop_motion_detector("D")

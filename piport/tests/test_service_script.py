@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """scripts/piport_service.sh against a stub pi-port (PIPORT_SERVICE_TEST): settings from the
 env file, a restart on touch, a clean stop on Ctrl-C, pi-port in its own process group, a
 pi-port left by an earlier start stopped first; and scripts/log_writer.py's rotation."""

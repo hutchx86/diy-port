@@ -298,9 +298,7 @@ class FlvPush:
                 self._codec_error_logged = None
                 log.warning(*msg)
             elif self._codec_error_logged != codec_error:
-                # Deterministic and retried every retryInterval: say it once at
-                # error level, not once a second (a camera-side codec change
-                # still recovers, since each attempt re-reads the stream).
+                # Retried until the camera changes codec: log once at error, not once a second.
                 self._codec_error_logged = codec_error
                 log.error(*msg)
             else:

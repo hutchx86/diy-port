@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 hutchx86
+# Copyright (C) 2026 The pi-port project
 """Unit tests for enrich.py (vehicle attributes) and avclient's enrichment
 plumbing; the plate/face model test runs only when its models are installed
 and AIPORT_ENRICH_SAMPLES points at sample images."""

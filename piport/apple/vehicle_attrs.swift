@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 The pi-port project
 // Vehicle type and colour from Apple's on-device foundation model (macOS 27+), for
 // piport/apple_fm.py. It prints "ready" (or "unavailable: <reason>") once, then reads one
 // image path per line on stdin and answers each with one JSON line on stdout:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 hutchx86
+# Copyright (C) 2026 The pi-port project
 """Second-stage enrichment on top of the detector's person/vehicle/animal boxes.
 
   * vehicle type + colour -> descriptor ``attributes`` ({val, confidence} per key,
@@ -31,10 +31,8 @@ SFACE_PATH = os.path.join(MODELS_DIR, "face_recognition_sface_2021dec.onnx")
 
 COORD_END = 1000  # descriptor coords are normalized 0-1000
 
-# COCO label -> Protect vehicleType. Protect turns attributes into labels verbatim
-# (extractAttributeLabelSet: "vehicleType:<val>") and only knows car/suv/truck/van/bus/
-# motorcycle/bike (convertRamTagsToLabels; it relabels "sedan" as "car"). Seen live: "sedan"
-# showed no type, "truck" did. COCO's "car" also covers SUVs and vans.
+# COCO label -> Protect vehicleType; Protect knows car/suv/truck/van/bus/motorcycle/bike and
+# relabels "sedan" as "car". COCO's "car" also covers SUVs and vans.
 VEHICLE_TYPES = {
     "car": "car",
     "truck": "truck",
@@ -51,14 +49,11 @@ COLOR_ALIASES = {"silver": "gray"}
 FACE_SCORE_THRESH = float(os.environ.get("AIPORT_FACE_THRESH", "0.8"))
 # SFace's published cosine threshold for "same person".
 FACE_MATCH_THRESH = float(os.environ.get("AIPORT_FACE_MATCH_THRESH", "0.363"))
-# Faces smaller than this (the shorter side, in snapshot pixels) aren't matched: SFace works on
-# a 112 x 112 face, and an 18 x 23 px face on Camera C scored 0.13 to 1.0 against the same
-# person. The AI Port firmware checks crop quality before recognising too.
+# Faces smaller than this (shorter side, snapshot pixels) aren't matched: SFace needs a
+# 112 x 112 face, and tiny crops scored 0.13 to 1.0 against the same person.
 FACE_MATCH_MIN_PX = int(os.environ.get("AIPORT_FACE_MATCH_MIN_PX") or 40)
-# ...nor are faces whose SFace vector is shorter than this: its length falls with a face's
-# quality (blur, looking down or away). Live 14:33 on Camera B a 40 px read of a stranger looking
-# down (length 6.0) went to Protect, which named her after the person whose weak reference
-# (length 3.9) sits 0.3-0.4 from many faces; good reads of him are 8.5-11.6.
+# ...nor faces whose SFace vector is shorter than this: length falls with quality, and a weak
+# embedding makes a bad enrolment.
 FACE_EMBED_MIN_NORM = float(os.environ.get("AIPORT_FACE_EMBED_MIN_NORM") or 7.0)
 
 
@@ -66,9 +61,8 @@ def weak_embedding(embedding):
     """True if an SFace vector is too short (a poor face) to send or match."""
     return embedding is None or float(np.linalg.norm(np.asarray(embedding, dtype=np.float64))) < FACE_EMBED_MIN_NORM
 PLATE_SCORE_THRESH = float(os.environ.get("AIPORT_LPR_THRESH", "0.5"))
-# Plates narrower than this (snapshot pixels) aren't read: re-reading the 14:38 clips, every
-# Camera B read under 75 px was wrong, from 80 px all but one were right, and Camera D's
-# 40 px plate came out as DEPM782 and DEFM782 by turns. AIPORT_LPR_MIN_PX overrides it.
+# Plates narrower than this (snapshot pixels) aren't read: every read under 75 px was wrong.
+# AIPORT_LPR_MIN_PX overrides it.
 PLATE_MIN_PX = int(os.environ.get("AIPORT_LPR_MIN_PX") or 60)
 # Plate/face crops are expanded by this factor around the parent box: the
 # full-res snapshot can lag the 640 detection frame by up to a second.
@@ -237,10 +231,8 @@ class Enricher:
     def _get_alpr(self):
         if self._alpr is None:
             from fast_alpr import ALPR
-            # Both on CPU: the CCT OCR graph doesn't compile for Core ML MLProgram, and the
-            # YOLOv9 end2end detector's NMS output has a dynamic shape ({-1}) that Core ML
-            # fails on at inference (seen live on passing cars; fast-alpr then returns no
-            # plates). ~33 ms per read on an M1 Pro CPU, only for moving vehicles.
+            # Both run on CPU: the CCT OCR graph and the YOLOv9 dynamic NMS output don't
+            # work under Core ML. ~33 ms per read, moving vehicles only.
             self._alpr = ALPR(detector_providers=["CPUExecutionProvider"],
                               ocr_providers=["CPUExecutionProvider"])
         return self._alpr

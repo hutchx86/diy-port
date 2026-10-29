@@ -250,7 +250,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         config.atomic_write_json(ADOPT_STATE_FILE, mgmt_payload)
         return True
 
-    def log_message(self, fmt, *args):
+    def log_message(self, *args):
         pass
 
 

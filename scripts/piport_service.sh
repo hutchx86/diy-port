@@ -1,22 +1,8 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Run pi-port on macOS and restart it without a new terminal or password.
-#
-#   scripts/macos_launchd.sh install     as a launchd agent under your account (recommended)
-#   cd ~/Code/pi-port && scripts/piport_service.sh     in a terminal
-#
-# No sudo: macOS lets any user bind ports below 1024. (Run with sudo it still works, as before.)
-#
-# Settings come from ~/.piport.env (see scripts/piport.env.example): AIPORT_* settings and
-# PIPORT_* identity, one KEY=value per line, re-read on every restart. Only those keys are
-# taken; the file is never run as a script.
-#
-#   touch ~/.piport-restart     restart pi-port (new code, new settings), no sudo needed
-#   Ctrl-C in this terminal     stop it
-#
-# If pi-port exits on its own it is restarted after 5 s. Output goes to ~/piport.log, rotated
-# by size (PIPORT_LOG_MAX_MB, 50 by default; PIPORT_LOG_KEEP old files, 5), and to the
-# terminal when there is one. caffeinate keeps the Mac awake while this runs.
+# Copyright (C) 2026 The pi-port project
+# Run pi-port on macOS; restart on exit or ~/.piport-restart, settings in ~/.piport.env.
+# The launchd wrapper is scripts/macos_launchd.sh; see piport/README.md.
 set -u
 
 if [ "$(uname)" != Darwin ] && [ "$(id -u)" -ne 0 ] && [ -z "${PIPORT_SERVICE_TEST:-}" ]; then
@@ -113,11 +99,8 @@ while true; do
     stop_stale
     seen=$(mtime "$TRIGGER")
     echo "piport_service: starting pi-port at $(date '+%F %T') (settings from $ENV_FILE)"
-    # A background job may start with SIGINT ignored, and Python then never raises
-    # KeyboardInterrupt; restore the default before exec so run_all can shut down cleanly.
-    # Job control only for this launch: pi-port gets its own process group (stop_child signals
-    # all of it), while the loop's sleeps and $(...) don't each get one, which raced and
-    # printed "child setpgid (...): Operation not permitted".
+    # A background job may start with SIGINT ignored: restore the default before exec so
+    # run_all can shut down. Job control only for this launch (its own process group).
     set -m
     "$REPO/venv/bin/python" -c 'import os, signal, sys
 signal.signal(signal.SIGINT, signal.SIG_DFL)

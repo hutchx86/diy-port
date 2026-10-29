@@ -1,27 +1,6 @@
 # SPDX-License-Identifier: MIT AND AGPL-3.0-or-later
-#
-# Adapted from Frigate's frigate/util/object.py and frigate/util/image.py (region clustering,
-# calculate_region, reduce_detections, clipped), https://github.com/blakeblackshear/frigate
-#
-# The MIT License
-# Copyright (c) 2026 Frigate, Inc. (Frigate™)
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this
-# software and associated documentation files (the "Software"), to deal in the Software
-# without restriction, including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
-# to whom the Software is furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in all copies or
-# substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
-# FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-#
+# Copyright (C) 2026 The pi-port project
+# Adapted from Frigate's frigate/util/object.py and util/image.py (regions, reduce_detections); MIT text in LICENSES/MIT-frigate.txt.
 # Changes for pi-port: detections are dicts ({"label", "score", "box", "region"}); NMS is
 # plain numpy rather than cv2.dnn; no learned region grid (a fixed startup scan instead).
 """Where to look: square regions around motion and tracked objects, and merging the
@@ -36,9 +15,8 @@ from collections import defaultdict
 import numpy as np
 
 MIN_REGION = 320
-# Per COCO label, as in Frigate's const.py.
-# person 0.75, not Frigate's 0.9: live 11:33 at Camera A an upper-body box 89% inside the
-# full-body box of the same person, standing close, became a second person.
+# Per COCO label, as in Frigate's const.py; person 0.75 (not 0.9) so a close upper-body box
+# doesn't become a second person.
 LABEL_CONSOLIDATION = {"car": 0.8, "face": 0.5, "person": 0.75}
 LABEL_CONSOLIDATION_DEFAULT = 0.9
 LABEL_NMS = {"car": 0.6}

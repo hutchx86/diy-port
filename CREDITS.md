@@ -24,8 +24,8 @@ Third-party projects this repository references, derives from, or vendors. See
   the stationary-object classifier (`piport/stationary.py`, from
   `frigate/track/stationary_classifier.py`) and Norfair matching
   (`piport/norfair_match.py`, from `frigate/track/norfair_tracker.py`) are adapted from
-  Frigate. Each file carries `SPDX-License-Identifier: MIT AND AGPL-3.0-or-later` and the
-  full MIT notice inline, as Frigate's licence requires.
+  Frigate. Each file carries `SPDX-License-Identifier: MIT AND AGPL-3.0-or-later` and points
+  at the MIT text in [`LICENSES/MIT-frigate.txt`](LICENSES/MIT-frigate.txt).
 
 ## Detection model
 

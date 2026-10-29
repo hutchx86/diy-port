@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 hutchx86
 #
-# Single-instance AI Port emulator, host networking (x86_64/arm64) -- the Komodo
-# Stack file. Set AIPORT_CONSOLE_HOST etc. via env; one instance per host.
+# Single-instance AI Port emulator, host networking; the Komodo Stack file.
 
 name: piport
 

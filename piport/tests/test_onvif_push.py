@@ -94,9 +94,8 @@ class TestRewrite(unittest.TestCase):
             self._run(b"RIFF....")
 
     def test_rejects_non_h264_video(self):
-        # ffmpeg muxes HEVC into FLV as Enhanced-RTMP (byte0 0x9 = key, codec 12,
-        # 'hvc1' fourCC); ms never ingests that. Codec 8 (UniFi's own HEVC) is
-        # equally unusable because it needs the 0x68 0x01 VPS/SPS/PPS config tag.
+        # ffmpeg muxes HEVC as Enhanced-RTMP (codec 12), which ms never ingests; codec 8
+        # needs the VPS/SPS/PPS config tag.
         for payload, codec in ((b"\x90hvc1\x01\x01\x60", "hevc (enhanced flv)"),
                                (b"\x18\x01\x00\x00\x00\x00", "FLV codec id 8")):
             with self.assertRaises(onvif_push.UnsupportedCodec) as ctx:

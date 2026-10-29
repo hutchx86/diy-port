@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 hutchx86
+# Copyright (C) 2026 The pi-port project
 """Fetch the model assets a detector backend needs (see piport/detectors/).
 
   rknn     the open Rockchip YOLOv5s model (ONNX + anchors + COCO labels +
@@ -28,10 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ZOO = "https://raw.githubusercontent.com/airockchip/rknn_model_zoo/v2.3.2"
 ONNX_URL = ("https://ftrg.zbox.filez.com/v2/delivery/data/"
             "95f00b0fc900458ba134f8b180b3f7a1/examples/yolov5/yolov5s_relu.onnx")
-# Small CPU model (onnxruntime, x86_64/arm64): Ultralytics YOLOv5n ONNX, ~3.8 MiB,
-# decode baked in (one [1,N,85] output), much faster on CPU than yolov5s.
-YOLOV5N_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5n.onnx"
-YOLOV5N_SHA256 = "04f0e55c26f58d17145b36045780fe1250d5bd2187543e11568e5141d05b3262"
+# Small CPU model (onnxruntime): Ultralytics YOLOv5n ONNX, ~3.8 MiB, decode baked in.
 # Face detection (YuNet, MIT) + recognition (SFace, Apache-2.0) for enrich.py, OpenCV zoo.
 OPENCV_ZOO = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models"
 FACE_MODELS = {
@@ -147,9 +144,10 @@ def main():
     # Small CPU model for the onnxruntime backend (gitignored, sha256-pinned).
     # Not needed on the RK3588 NPU board, so the installer passes --no-cpu-model.
     if not args.no_cpu_model:
+        url, sha256 = BACKEND_MODELS["cpu"]["yolov5n.onnx"]
         npath = os.path.join(DIRS["models"], "yolov5n.onnx")
-        download(YOLOV5N_URL, npath, args.force)
-        verify_sha256(npath, YOLOV5N_SHA256)
+        download(url, npath, args.force)
+        verify_sha256(npath, sha256)
 
     subset_list = os.path.join(DIRS["rknn_convert"], "coco_subset_20.txt")
     with open(subset_list) as f:

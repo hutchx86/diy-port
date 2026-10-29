@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """The camera's own clock, from the RTCP sender reports on its RTSP stream.
 
 A native UniFi camera's sender reports carry its uptime clock (seen: 339676 s on Camera A,

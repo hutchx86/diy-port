@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """replay.py on synthetic clips (a white box crossing a black frame) with a fake detector
 that finds it, and record_clip.py's log scan. ffmpeg tests are skipped if it's absent."""
 import importlib.util
@@ -81,9 +82,8 @@ class TestReplay(unittest.TestCase):
         events = replay.summarize(sent)
         self.assertEqual(len(events), 1)
         self.assertEqual([o["type"] for o in events[0]["objects"]], ["person"])
-        # it appears at 0.5 s and is sent once it has initialised (MIN_INITIALIZED frames
-        # later), its enter dated back to 0.5 s; its track closes AIPORT_MISS_S after it goes
-        # at 2.5 s
+        # appears at 0.5 s, enters once initialised (dated back to 0.5 s), and closes
+        # AIPORT_MISS_S after it goes.
         init_s = (av.MIN_INITIALIZED + 1) / av.DETECT_FPS
         self.assertAlmostEqual(events[0]["start_s"], 0.5 + init_s, delta=0.3)
         walls = [p["clockWall"] for _, p in sent]

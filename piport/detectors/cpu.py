@@ -8,7 +8,7 @@ anchor-free YOLOv8/v9/v11 export ([1,84,N], e.g. Frigate's yolov9-s-320.onnx);
 the layout and input size are read from the graph. On Apple silicon, onnxruntime's Core ML
 provider runs the model on the Neural Engine (~5-6x the CPU path); Linux and
 Docker builds only offer CPU. Slow next to an NPU/TPU -- fine for one or two
-cameras at the 1.5s detection tick.
+cameras at the configured detection rate.
 """
 import logging
 import os
@@ -21,10 +21,8 @@ from .base import Detector
 log = logging.getLogger("aiport-detector")
 
 
-# Where Core ML runs the model (AIPORT_COREML_UNITS): auto leaves Core ML's choice (the Neural
-# Engine for these models); gpu keeps it off the Neural Engine, which Frigate's Core ML
-# detector shares on the same Mac (live 18:40 ANE power rose ~7x with every camera's pass time
-# while the CPU sat half idle).
+# Where Core ML runs the model (AIPORT_COREML_UNITS): auto = Core ML's choice (Neural Engine);
+# gpu keeps it off the ANE that a co-resident Frigate shares.
 COREML_UNITS = {"ane": "CPUAndNeuralEngine", "gpu": "CPUAndGPU", "cpu": "CPUOnly", "all": "ALL"}
 
 

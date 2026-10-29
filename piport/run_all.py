@@ -70,11 +70,8 @@ def main():
         args.mac = config.resolve_mac(args.iface, None, cfg)
         print(f"No --mac given; using MAC {args.mac}")
 
-    # Bind the interface's own IP, not 0.0.0.0: a wildcard :443 would block
-    # other instances' :443. Falls back to 0.0.0.0 if resolution fails. Not on macOS without
-    # root: there a user may bind ports below 1024 only on the wildcard address (binding
-    # en0's IP to :443 was refused), and one Mac runs one instance. Components still report
-    # the interface's own IP.
+    # Bind the interface's own IP so other instances' :443 stays free (0.0.0.0 if it fails).
+    # macOS without root is the exception: it can only bind :443 on the wildcard address.
     if args.bind_ip == "0.0.0.0" and sys.platform == "darwin" and os.geteuid() != 0:
         print(f"Binding 0.0.0.0: macOS lets a non-root user bind :443 only on the wildcard "
               f"address (it still reports {args.iface}'s own IP)")
@@ -132,7 +129,7 @@ def main():
 
     print(f"Started {len(procs)} components. Ctrl-C to stop all.")
 
-    def _on_term(signum, frame):
+    def _on_term(*_):
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, _on_term)

@@ -1,11 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 hutchx86
 #
-# Dedicated LAN IP per container (macvlan). Use instead of compose.yaml when the
-# container must be a distinct L2 device (own IP/MAC, own :443, several instances).
-# Static IPs only (no Docker DHCP); wired parent NIC; the host can't reach the
-# container IP without a shim. Every instance needs a unique IP, MAC and device-id.
-# ILLUSTRATIVE -- replace the <placeholders>.
+# Dedicated LAN IP/MAC per container (macvlan); static IPs, wired NIC, illustrative only.
 
 name: piport
 

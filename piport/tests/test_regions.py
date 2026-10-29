@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The pi-port project
 """regions.py (Frigate's region clustering and merging) and avclient's region detection."""
 import importlib.util
 import os

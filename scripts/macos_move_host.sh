@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 hutchx86
-# Move a running AI Port to another Mac keeping its identity (same adopted device,
-# camera pairings and settings in Protect). Stop pi-port on the old Mac first.
-#
-#   old Mac:  sudo scripts/macos_move_host.sh export ~/piport-move.tgz [--iface en0]
-#   new Mac:  sudo scripts/macos_move_host.sh import ~/piport-move.tgz
-#
-# The bundle holds the state dir (adoption token, mTLS cert/key, face DB), the
-# model files (not in git) and identity.env (advertised MAC + device_id). The MAC
-# must be pinned with --mac on the new Mac: it is otherwise derived from that
-# Mac's own interface, and Protect would see a different device.
+# Copyright (C) 2026 The pi-port project
+# Move a running AI Port to another Mac with its identity: export | import.
+# See piport/README.md (the MAC must be pinned on the new host).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 USER_HOME="$(eval echo "~${SUDO_USER:-$USER}")"
 STATE_DIR="${PIPORT_STATE_DIR:-$USER_HOME/.piport-state}"
 
-usage() { sed -n '5,13p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { echo "usage: $0 export <bundle.tgz> [--iface IFACE] | import <bundle.tgz>" >&2; exit 1; }
 [ $# -ge 2 ] || usage
 cmd="$1"; bundle="$2"; shift 2
 iface=""

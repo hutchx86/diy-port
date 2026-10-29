@@ -217,8 +217,8 @@ MAX_BODY_BYTES = 64 * 1024
 class Handler(BaseHTTPRequestHandler):
     timeout = 10
 
-    def log_message(self, fmt, *args):
-        pass  # keep this quiet -- polled every second, not worth logging
+    def log_message(self, *args):
+        pass  # polled every second, not worth logging
 
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":

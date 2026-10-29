@@ -12,7 +12,7 @@ if not HOST:
 if not PASS:
     sys.exit("UNVR_PASS is unset")
 
-def _handler(title, instructions, prompt_list):
+def _handler(_title, _instructions, prompt_list):
     return [PASS for _ in prompt_list]
 
 def run(cmd, timeout=60):

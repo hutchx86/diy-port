@@ -164,10 +164,18 @@ def post_process_raw_heads(outputs, anchors, img_size):
     return _nms_per_class(boxes, classes, scores)
 
 
+def _xywh_to_xyxy(xywh):
+    xyxy = np.copy(xywh)
+    xyxy[:, 0] = xywh[:, 0] - xywh[:, 2] / 2
+    xyxy[:, 1] = xywh[:, 1] - xywh[:, 3] / 2
+    xyxy[:, 2] = xywh[:, 0] + xywh[:, 2] / 2
+    xyxy[:, 3] = xywh[:, 1] + xywh[:, 3] / 2
+    return xyxy
+
+
 def post_process_ultralytics(output, box_scale=1.0):
-    """One [1,N,5+classes] output -> (boxes xyxy px, classes, scores), or Nones.
-    box_scale multiplies the xywh columns: 1 for pixel-space exports (ONNX), the
-    input size for TFLite/Edge TPU exports, which emit 0-1 normalized boxes."""
+    """[1,N,5+classes] -> (boxes xyxy px, classes, scores), or Nones. box_scale multiplies
+    the xywh columns (1 for pixel exports, the input size for 0-1 TFLite/Edge TPU)."""
     pred = output[0]  # (N, 5+num_classes): xywh, obj, class scores
     obj = pred[:, 4]
     class_conf = pred[:, 5:]
@@ -177,12 +185,7 @@ def post_process_ultralytics(output, box_scale=1.0):
     if not np.any(keep):
         return None, None, None
     xywh = pred[keep, :4] * box_scale
-    xyxy = np.copy(xywh)
-    xyxy[:, 0] = xywh[:, 0] - xywh[:, 2] / 2
-    xyxy[:, 1] = xywh[:, 1] - xywh[:, 3] / 2
-    xyxy[:, 2] = xywh[:, 0] + xywh[:, 2] / 2
-    xyxy[:, 3] = xywh[:, 1] + xywh[:, 3] / 2
-    return _nms_per_class(xyxy, classes[keep], scores[keep])
+    return _nms_per_class(_xywh_to_xyxy(xywh), classes[keep], scores[keep])
 
 
 def post_process_anchor_free(output, box_scale=1.0):
@@ -196,12 +199,7 @@ def post_process_anchor_free(output, box_scale=1.0):
     if not np.any(keep):
         return None, None, None
     xywh = pred[keep, :4] * box_scale
-    xyxy = np.copy(xywh)
-    xyxy[:, 0] = xywh[:, 0] - xywh[:, 2] / 2
-    xyxy[:, 1] = xywh[:, 1] - xywh[:, 3] / 2
-    xyxy[:, 2] = xywh[:, 0] + xywh[:, 2] / 2
-    xyxy[:, 3] = xywh[:, 1] + xywh[:, 3] / 2
-    return _nms_per_class(xyxy, classes[keep], scores[keep])
+    return _nms_per_class(_xywh_to_xyxy(xywh), classes[keep], scores[keep])
 
 
 def layout(output_shapes, num_classes):
