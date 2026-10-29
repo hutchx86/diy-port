@@ -2142,7 +2142,20 @@ class TestRtspTimeout(Base):
 
 class TestDetectionRate(Base):
     def test_ticks_count_analysed_frames(self):
-        self.assertEqual(av._ticks(3), max(1, round(3 / av.DETECT_INTERVAL_S)))
+        # The poll loop analyses every frame at DETECT_FPS; DETECT_INTERVAL_S is only the
+        # idle timeout, so on Linux defaults it is 1.5 s while frames arrive every 0.5 s.
+        self.assertEqual(av.TICK_INTERVAL_S, min(av.DETECT_INTERVAL_S, 1 / av.DETECT_FPS))
+        self.assertEqual(av._ticks(3), max(1, round(3 / av.TICK_INTERVAL_S)))
+
+    def test_time_constants_are_wall_clock_at_the_analysed_rate(self):
+        # Regression: these were divided by DETECT_INTERVAL_S, so on Linux the 3 s miss
+        # window became 1 s and the 30 s still/parked windows 10 s.
+        tick = 1 / av.DETECT_FPS
+        self.assertAlmostEqual(av.MOTION_MISS_TOLERANCE_TICKS / av.DETECT_FPS,
+                               av.MOTION_MISS_TOLERANCE_S, delta=tick)
+        self.assertAlmostEqual(av.STILL_TICKS / av.DETECT_FPS, 30, delta=tick)
+        self.assertAlmostEqual(av.PARKED_MISS_TOLERANCE_TICKS / av.DETECT_FPS, 30, delta=tick)
+        self.assertAlmostEqual(av.STATIONARY_RESUME_TICKS / av.DETECT_FPS, 6, delta=tick)
 
     def test_detection_never_slower_than_reporting(self):
         self.assertLessEqual(av.DETECT_INTERVAL_S, av.MOTION_POLL_INTERVAL_S)

@@ -210,12 +210,17 @@ DETECT_INTERVAL_S = min(MOTION_POLL_INTERVAL_S,
                                   or (10 if sys.platform == "darwin"
                                       else 1 / MOTION_POLL_INTERVAL_S)))
 DETECT_FPS = max(2, math.ceil(1 / DETECT_INTERVAL_S))
+# The poll loop analyses every frame the stream supplies (ffmpeg emits DETECT_FPS of them),
+# so the analysed-frame interval is 1 / DETECT_FPS. DETECT_INTERVAL_S is only the idle
+# timeout when no frame arrives; the two differ wherever DETECT_FPS is floored to 2, which
+# is every host but a fast macOS one.
+TICK_INTERVAL_S = min(DETECT_INTERVAL_S, 1 / DETECT_FPS)
 
 
 def _ticks(seconds):
     """Analysed-frame count for a duration. Track counters advance once per analysed
     frame, so time-based thresholds don't change with the detection rate."""
-    return max(1, round(seconds / DETECT_INTERVAL_S))
+    return max(1, round(seconds / TICK_INTERVAL_S))
 
 
 # How long Protect shows each box: until just past the next update (a G5 Bullet's
