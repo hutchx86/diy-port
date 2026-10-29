@@ -3350,8 +3350,8 @@ def _start_motion_detector(ws, device_id, ip, port, uri, preserve_tracks=False):
             except Exception:  # accounting must never stop a camera
                 log.exception("frame stats failed for deviceID=%s", device_id)
 
-    log.info("starting real motion detector (up to %.0f frames/s, reports every %.2fs) for "
-             "deviceID=%s", 1 / DETECT_INTERVAL_S, MOTION_POLL_INTERVAL_S, device_id)
+    log.info("starting real motion detector (up to %d frames/s, reports every %.2fs) for "
+             "deviceID=%s", DETECT_FPS, MOTION_POLL_INTERVAL_S, device_id)
     t = threading.Thread(target=_poll_loop, daemon=True)
     _motion_poll_thread[device_id] = t
     t.start()
