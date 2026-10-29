@@ -68,6 +68,9 @@ additions. All of the following was confirmed live against a real console.
 | `ucp4_client.py` | Generic `ucp4` device-management WebSocket client (adoption, `getInfo`). |
 | `avclient.py` | Classic per-camera avclient client: pairing, detection/classification, `EventSmartDetect` / `EventFeatureFlagsUpdated` pushes, snapshot upload. Most real behavior lives here. |
 | `detectors/` | Pluggable detection backends selected by `[hardware] detector`: `rknn` (RK3588 NPU), `edgetpu` (Coral USB/PCIe), `cpu` (onnxruntime; Core ML on Apple-silicon macOS). `postprocess.py` holds the shared YOLOv5 decode/NMS and COCO → person/vehicle/animal mapping. |
+| `enrich.py`, `facedb.py` | Optional vehicle attributes, plates and faces; Protect's known-faces DB and embedding matching. |
+| `motion.py`, `regions.py`, `stationary.py`, `norfair_match.py` | Frigate-derived motion gate, region crops, parked-object check and Norfair matcher. |
+| `replay.py`, `hoststats.py`, `camera_clock.py`, `apple_fm.py` | Offline clip replay, host load line, RTSP clock reader and the macOS vehicle model. |
 | `run_all.py` | Launches all of the above together. |
 | `sysinfo_server.py` | Board system monitor / multi-instance web UI (CPU, memory, GPU, NPU); not part of the protocol. |
 | `instance_manager.py` | Manages multiple reboot-surviving emulator instances as systemd units (macvlan or physical). |
@@ -173,9 +176,17 @@ exits, from settings in `~/.piport.env` (`scripts/piport.env.example`); `touch ~
 (or `scripts/macos_launchd.sh restart`) picks up a code or settings change. Output goes to
 `~/piport.log`, rotated at `PIPORT_LOG_MAX_MB` (50) with `PIPORT_LOG_KEEP` (5) old files kept.
 `scripts/piport_service.sh` is what the agent runs, and can also be run in a terminal. Files an
-earlier `sudo` run left owned by root have to be handed back first (install prints the `chown`),
-and the host stats line's GPU and power figures need a sudoers rule for `powermetrics` (in the
-script's header).
+earlier `sudo` run left owned by root have to be handed back first (install prints the `chown`).
+The host stats line's GPU and power figures need `powermetrics` as root:
+
+```bash
+echo "$USER ALL=(root) NOPASSWD: /usr/bin/powermetrics" | sudo tee /etc/sudoers.d/piport-powermetrics
+sudo chmod 440 /etc/sudoers.d/piport-powermetrics
+sudo visudo -cf /etc/sudoers.d/piport-powermetrics
+```
+
+`scripts/macos_move_host.sh export|import` moves an adopted AI Port to another Mac with its
+identity; pin the same MAC on the new host with `--mac`.
 
 ## Object detection (NPU / CPU / Core ML / Edge TPU)
 
@@ -340,7 +351,7 @@ ANE 0.8 W`.
 
 **Detection and report rates.** Detecting and reporting run at separate rates. Each camera's
 detector analyses up to `AIPORT_DETECT_FPS` frames per second (10 on macOS, where Core ML runs
-a frame in ~8 ms; elsewhere one frame per tick), each frame once, and tracking runs on every
+a frame in ~8 ms; 2 elsewhere), each frame once, and tracking runs on every
 analysed frame. `moving` updates go to Protect once per `AIPORT_TICK_S` (0.33 s on macOS,
 matching a G5 Bullet's `moving` every ~330 ms, median 249-600 ms, with `displayTimeoutMSec`
 ~326; 1.5 s elsewhere), batching every track seen since the last update; `enter` and
@@ -381,7 +392,9 @@ successive events. A person or a car that moved and left is still new next time.
 parked car's box is part of that car, not a new vehicle: on Camera A a second box on a
 parked car's lower half opened "vehicle" events while nothing moved.
 
-**Parked objects move by their pixels, not their boxes** (`stationary.py`, adapted from
+### Parked objects
+
+Parked objects move by their pixels, not their boxes (`stationary.py`, adapted from
 Frigate's `stationary_classifier.py`, MIT). When a track parks, a crop of its spot becomes an
 anchor. When its boxes later say it moved, the same spot is compared with the anchor
 (normalised cross-correlation and phase-correlation shift): only if the picture there has
@@ -389,7 +402,9 @@ changed on two checks in a row, or drifted, does it rejoin as moving. Otherwise 
 back to where it parked. On Camera A, boxes on a parked car shrinking onto its lower half
 had counted as the car moving.
 
-**Matching with Norfair** (`norfair_match.py`, after Frigate's `norfair_tracker.py`, MIT;
+### Matching with Norfair
+
+Matching with Norfair (`norfair_match.py`, after Frigate's `norfair_tracker.py`, MIT;
 `AIPORT_TRACKER`, default `norfair` when the package is installed, else `builtin`). One
 Norfair tracker (BSD-3-Clause, Kalman-filtered) per object type, with Frigate's distance
 (bottom-centre offset relative to size, plus width and height change) and limits, decides
@@ -402,7 +417,9 @@ swapped them. Install it without its dependency pins, which would downgrade nump
 (OpenCV 5 and onnxruntime need 2): `venv/bin/pip install scipy rich` then
 `venv/bin/pip install --no-deps norfair==2.3.0 "filterpy>=1.4.5,<2"`.
 
-**Tracking.** Detections match tracks by box overlap; a moving track no box overlaps takes
+### Tracking
+
+Detections match tracks by box overlap; a moving track no box overlaps takes
 the nearest same-type detection near where its last movement predicts it (within 3x its size,
 at most 150 of 1000, widening by a quarter per missed tick up to 1.5x), so small, fast objects
 no longer split into a new track every tick, and a missed track can't take a car across the
@@ -428,7 +445,9 @@ frame, followed by a `moving` update per report interval stamped with each later
 playback draws the box from the first frame. A track joining an event that is already open
 isn't back-filled (that event's timeline never goes back).
 
-**Events.** Protect keeps one smart-detect event per camera, not per track: the first
+### Events
+
+Protect keeps one smart-detect event per camera, not per track: the first
 `leave` closes it, and a scheduled check force-ends one left open past ~5.5 minutes without
 fetching any snapshots. So tracks share a camera event: `enter` when the first track
 appears, one batched `moving` per tick, and a single `leave` with one participant's
@@ -474,7 +493,9 @@ Protect's values show: `vehicleType` car/suv/truck/van/bus/motorcycle/bike (COCO
 sent as `car`; `sedan` displayed nothing) and `color`
 red/orange/yellow/green/blue/purple/pink/brown/black/white/gray (silver is sent as `gray`).
 
-**Region detection** (`regions.py`, adapted from Frigate's region code, MIT; on by default on
+### Region detection
+
+Region detection (`regions.py`, adapted from Frigate's region code, MIT; on by default on
 macOS, `AIPORT_REGIONS=0` turns it off and is the default on Linux, where the RK3588 NPU model
 is fixed at 640x640). The detector frame keeps the camera's aspect ratio, its long side
 `AIPORT_DETECT_SIZE` (default 1280: 1280x720 for a 16:9 camera, 954x1280 for the portrait
@@ -489,7 +510,9 @@ box, and each re-detection that finds it in place refreshes its pixel anchor. A 
 detections before it can be a true positive, as Frigate's tracker needs 2 hits. A small or
 distant object now reaches the model at close to its native size.
 
-Classification is also **gated by motion** (`motion.py`, adapted from Frigate's
+### Motion gate
+
+Classification is gated by motion (`motion.py`, adapted from Frigate's
 `improved_motion.py`, MIT): each frame is shrunk to 100 rows of grayscale, contrast-stretched,
 blurred and compared with a running-average background; pixels differing by more than the
 threshold form motion boxes, and a frame where most of the picture changes (lightning, IR
@@ -536,7 +559,7 @@ pip install onnx==1.16.1   # repin; rknn-toolkit2 may upgrade onnx
   `(1,H,W,3)`) or it fails with `"need 4dims input, but 3dims input buffer feed"`. Handled in
   `detectors/rknn.py`.
 
-## Object detection (Coral Edge TPU, e.g. Raspberry Pi 5)
+## Coral Edge TPU backend (Raspberry Pi 5)
 
 `detectors/edgetpu.py` runs Google's SSDLite MobileDet COCO model (320x320 uint8, decode and NMS
 in-graph, the model Frigate ships) on a Coral via `ai-edge-litert` and the `libedgetpu` delegate;
@@ -603,11 +626,14 @@ A camera whose pull dies before its first frame with GPU scaling falls back to t
 Files live in a RAM/temp stream dir unique to each `--state-dir`
 (`<tmp>/aiport-streams/<hash>/`), so several AI Ports can share a host; its `tmp/` folder
 holds the in-flight files (snapshot rewrites, crop inputs) and is emptied at startup, so a
-crash leaves nothing behind. A background loop classifies the latest frame every 1.5s (`MOTION_POLL_INTERVAL_S`): a
-detection opens (`"enter"`) or refreshes (`"moving"`) a track, and a track closes (`"leave"`)
-only after `AIPORT_MISS_S` (default 3 s) of **consecutive** empty ticks. Simultaneous
-objects are tracked independently and matched frame-to-frame by bounding-box IOU within each
-type, with a nearest-neighbour fallback for moving tracks (see **Tracking** above).
+crash leaves nothing behind.
+
+Detection and report rates are separate. Each camera analyses `AIPORT_DETECT_FPS` frames a
+second (10 on macOS, 2 elsewhere), while reports and track timers run per `AIPORT_TICK_S` tick
+(0.33 s on macOS, 1.5 s elsewhere). A detection opens (`"enter"`) or refreshes (`"moving"`) the
+camera's event; a track closes (`"leave"`) after `AIPORT_MISS_S` (default 3 s) of consecutive
+empty ticks. Tracks match by Norfair or by IOU with a nearest-neighbour fallback (see
+**Tracking**).
 
 Capability declaration is separate. For an event to be filterable by object type in the UI, the
 camera's own `featureFlags.smartDetectTypes` / `hasMotionDetection` must be populated. This does

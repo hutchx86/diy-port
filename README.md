@@ -96,6 +96,9 @@ as `extendedFlv`, while the AI Port also pulls the camera's RTSP for detection.
 | `ucp4_client.py` | Generic `ucp4` device-management WebSocket |
 | `avclient.py` | Pairing, streaming and smart-detect WebSocket + detection loop |
 | `detectors/` | Pluggable detector backends: `rknn` NPU, `edgetpu` Coral, `cpu` (onnxruntime/Core ML) |
+| `enrich.py`, `facedb.py` | Optional vehicle attributes, plates and faces (Protect's face DB) |
+| `motion.py`, `regions.py`, `stationary.py`, `norfair_match.py` | Frigate-derived motion gate, region crops, parked-object check, Norfair matching |
+| `replay.py` | Offline clip replay and scenario checks |
 | `onvif_push.py` | ONVIF camera video push to Protect (`extendedFlv`) |
 | `sysinfo_server.py` | Dev-box CPU/mem/GPU/NPU/Coral status page (`webui.html`) |
 | `instance_manager.py`, `run_all.py` | Multi-instance orchestration |
@@ -130,7 +133,19 @@ in `piport/detectors/__init__.py`.
   MobileDet (or a YOLOv5 Edge TPU export) on a Coral, and onnxruntime on CPU or
   the Apple-silicon Neural Engine (Core ML).
 - **Detection events with thumbnails** — `EventSmartDetect` with per-object
-  snapshots and Full-FoV images, plus the overview/timeline thumbnails.
+  snapshots and Full-FoV images, plus the overview/timeline thumbnails. One event
+  per camera, with batched leaves, real zone ids and per-camera box timing.
+- **Frigate-derived detection quality** — motion gate, native-size region crops,
+  true-positive score gating, parked-object pixel checks and an optional Norfair
+  tracker; all off or unchanged unless enabled.
+- **Optional enrichment** — license plates (`fast-alpr`), faces (YuNet/SFace,
+  matched against Protect's known-faces DB) and vehicle type/colour (Apple's model
+  on macOS, YOLO class + HSV elsewhere).
+- **Replay harness** — recorded clips run through the full pipeline with `--check`
+  expectations, so detection changes are tested before going live.
+- **Observability** — per-camera frames/inference lines and a host load line
+  (CPU per process group, GPU, NPU, power where readable); a launchd service on
+  macOS.
 - **Multi-instance** — one reboot-surviving systemd unit and macvlan interface
   per instance on the board, or one container per host. Board/macvlan instances
   are distinct L2 devices; a host-network container shares the host's IP. A
@@ -151,6 +166,10 @@ in `piport/detectors/__init__.py`.
   same-host Docker bridge setup).
 - For model conversion: an x86_64 Linux host with `rknn-toolkit2` (the RKNN
   converter does not run on the board).
+- Optional enrichment: `opencv-python-headless` for the motion gate, stationary
+  checks and faces; `fast-alpr[onnx]` for plates; `norfair` for the Kalman
+  tracker. Recipes and extras are in `piport/requirements.txt`; every stage
+  degrades cleanly when absent.
 
 ## Repository layout
 
@@ -161,16 +180,25 @@ piport/               the emulator
   ucp4_client.py        generic ucp4 device-management websocket
   avclient.py           pairing/streaming/smart-detect websocket + detection
   detectors/            pluggable detector backends (rknn / edgetpu / cpu)
+  enrich.py / facedb.py optional plates, faces and vehicle attributes
+  motion.py / regions.py / stationary.py / norfair_match.py   Frigate-derived detection
+  replay.py             offline clip replay and scenario checks
+  hoststats.py / camera_clock.py / apple_fm.py   host load, RTSP clock, macOS vehicle model
+  apple/                Swift helper for the macOS vehicle model
   onvif_push.py         ONVIF camera video push (extendedFlv)
   sysinfo_server.py     dev-box CPU/mem/GPU/NPU/Coral status page (+ webui.html)
   models/               anchors + COCO labels (model binaries fetched, not stored)
+  tests/                unit suite
+  requirements.txt      Python dependencies (optional extras documented inline)
   instance_manager.py / run_all.py   multi-instance orchestration
 compose.yaml          CPU stack / Komodo Stack (host net; x86_64 + arm64)
 compose.macvlan.yaml  same, but a dedicated LAN IP/MAC per container
+compose.macos.yaml    macOS container (NAT + pf; see docker/README.md)
 docker/               Dockerfile (CPU/Coral), bridge compose, smoke test + notes
-scripts/              install.sh (board installer), fetch_models.py, helpers
+scripts/              install.sh, fetch_models.py, record_clip.py, log_writer.py;
+                      piport_service.sh + macos_launchd.sh / macos_move_host.sh (macOS)
 rknn_convert/         YOLOv5s -> RKNN conversion recipe (x86 build host)
-docs/images/          README diagram
+docs/                 protocol notes and design records (docs/images/ holds the diagram)
 ```
 
 Model binaries (`.onnx`/`.rknn`/`.tflite`) and all Ubiquiti firmware are **not**
@@ -307,7 +335,7 @@ it (and warns, then uses CPU, if onnxruntime has no Core ML provider).
 brew install ffmpeg
 python3 -m venv venv
 venv/bin/pip install -r piport/requirements.txt onnxruntime
-venv/bin/pip install fast-alpr opencv-python-headless      # optional: plates + faces (enrich.py)
+venv/bin/pip install "fast-alpr[onnx]" opencv-python-headless   # optional: plates + faces
 venv/bin/python scripts/fetch_models.py --backend cpu      # downloads yolov5n.onnx
 venv/bin/python scripts/fetch_models.py --face-models-only # optional: YuNet/SFace face models
 $EDITOR piport/aiport.cfg                                   # set [console] host + device_id
@@ -315,6 +343,11 @@ sudo caffeinate -is venv/bin/python piport/run_all.py --iface en0 --state-dir ~/
 ```
 
 `sudo` is needed for UDP/10001 and TCP/443.
+
+To run it as a service instead, install the launchd agent (no sudo):
+`scripts/macos_launchd.sh install` starts it at login, restarts it on exit, and re-reads
+`~/.piport.env` on `touch ~/.piport-restart`; logs rotate in `~/piport.log`.
+`scripts/piport_service.sh` does the work and can also run in a terminal. See `piport/README.md`.
 
 - `caffeinate -is` stops the Mac sleeping while it runs (a sleeping Mac drops off the console).
 - `--iface` is the default-route interface (`route -n get default`); the MAC is derived from it,
@@ -467,8 +500,22 @@ Device identity, network mode, the console address and the detector live in
 | `[hardware] detector_model` | — | Model file for that backend; blank = its default in `models/` (env `AIPORT_MODEL_PATH`) |
 
 Detector/runtime environment overrides: `AIPORT_DETECTOR`, `AIPORT_MODEL_PATH`,
-`AIPORT_OBJ_THRESH`, `AIPORT_HWDEC`, `AIPORT_HW_SCALE`, `AIPORT_FRAME_JPEG_FPS`, `AIPORT_ORT_INTRA_THREADS`, `AIPORT_ORT_PROVIDER`, `AIPORT_TICK_S`, `AIPORT_DETECT_FPS`, `AIPORT_CONFIRM_MS`, `AIPORT_MISS_S`, `AIPORT_TRUE_THRESH`, `AIPORT_RESUME_S`, `AIPORT_BOX_DELAY_MS`, `AIPORT_LPR`, `AIPORT_FACE`,
-`AIPORT_MOTION_GATE` / `AIPORT_MOTION_THRESHOLD` / `AIPORT_MOTION_CONTOUR_AREA`, `AIPORT_REGIONS` / `AIPORT_DETECT_SIZE`, `AIPORT_TRACKER`, `AIPORT_LENS_FILTER` / `AIPORT_LENS_MIN_HEIGHT` (see `piport/README.md`).
+`AIPORT_OBJ_THRESH`, `AIPORT_HWDEC`, `AIPORT_HW_SCALE`, `AIPORT_FRAME_JPEG_FPS`,
+`AIPORT_ORT_INTRA_THREADS`, `AIPORT_ORT_PROVIDER`, `AIPORT_TICK_S`, `AIPORT_DETECT_FPS`,
+`AIPORT_CONFIRM_MS`, `AIPORT_MISS_S`, `AIPORT_TRUE_THRESH`, `AIPORT_RESUME_S`,
+`AIPORT_MIN_INITIALIZED`, `AIPORT_BOX_DELAY_MS`, `AIPORT_MOTION_GATE` /
+`AIPORT_MOTION_THRESHOLD` / `AIPORT_MOTION_CONTOUR_AREA` / `AIPORT_MOTION_GATE_THRESH`,
+`AIPORT_REGIONS` / `AIPORT_DETECT_SIZE`, `AIPORT_TRACKER`, `AIPORT_LENS_FILTER` /
+`AIPORT_LENS_MIN_HEIGHT`.
+
+Enrichment: `AIPORT_VEHICLE_ATTRS`, `AIPORT_VEHICLE_FM`, `AIPORT_LPR` /
+`AIPORT_LPR_MIN_PX` / `AIPORT_LPR_THRESH`, `AIPORT_FACE` / `AIPORT_FACE_THRESH` /
+`AIPORT_FACE_MATCH_*` / `AIPORT_FACE_EMBED_MIN_*` / `AIPORT_FACE_DB_THRESH`,
+`AIPORT_FACES_DIR` / `AIPORT_FACES_SEEN_DIR`.
+
+Host and operations: `AIPORT_HOST_STATS`, `AIPORT_POINTS_SCALE`, `AIPORT_STREAM_STALL_S`,
+`AIPORT_RTSP_TIMEOUT_S`, `AIPORT_ADVERTISE_IP` (NAT/Docker), and the experimental
+`AIPORT_CAMERA_CLOCK` / `AIPORT_CLOCK_WALL_SKEW_MS`. Details in `piport/README.md`.
 The old `AIPORT_BACKEND=auto|rknn|onnx` name is still accepted (`onnx` = `cpu`).
 `AIPORT_ORT_PROVIDER` is `auto` by default (Core ML when onnxruntime offers it, else
 CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if absent).
@@ -490,6 +537,10 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
   ```bash
   ./docker/run-smoke-test.sh
   ```
+
+- Replay harness (tracking, faces, regions): record a clip with
+  `scripts/record_clip.py`, then run `python3 piport/replay.py <clip> --check <dir>`.
+  This is the pre-change check for detection/tracking work; see `piport/README.md`.
 
 - On-device: run the stack and watch it discover, adopt and pair (see
   `piport/README.md` and `scripts/live_watch.py`).
@@ -528,6 +579,16 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
 
 ## Changelog
 
+<details>
+<summary><b>Changelog</b></summary>
+
+- **2026-10-29** — PR #4 (NorthernMan54): Frigate-style detection (motion gate,
+  region crops, true-positive gating, parked objects, optional Norfair), optional
+  enrichment (plates, faces against Protect's face DB, vehicle attributes incl.
+  Apple's model on macOS), one event per camera with batched leaves and real zone
+  ids, per-camera box timing, stream recovery/backoff, replay harness, per-camera
+  frames and host load lines, macOS launchd service. Fixes: track timers follow
+  the analysed-frame rate, and the auto-hwdec tests pass on an RK3588 host.
 - **Unreleased** — pluggable detector backends (`piport/detectors/`): RK3588
   NPU, Coral Edge TPU (Raspberry Pi 5) and CPU/Core ML, chosen by `[hardware]
   detector` / `install.sh --accel`; ONVIF cameras (video push to Protect plus
@@ -544,6 +605,8 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
   units; one-shot `install.sh`.
 - **2026-08** — initial protocol stack: discovery, adoption, both WebSocket
   connections, NPU detection and `EventSmartDetect` with thumbnails.
+
+</details>
 
 ## Troubleshooting
 

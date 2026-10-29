@@ -86,6 +86,43 @@ The trade-off: the AI Port lives on the Docker subnet, so only that host can
 reach it. A console on another machine cannot — use `scripts/install.sh` or the
 LAN Compose stack there.
 
+## macOS (OrbStack / Docker Desktop)
+
+Containers on a Mac sit behind NAT in a Linux VM: there is no macvlan to give one
+a LAN address, and UBNT discovery broadcasts don't reach it. Use `compose.macos.yaml`:
+
+1. Give the Mac a spare LAN address as an alias (not kept across reboots):
+
+   ```bash
+   sudo ifconfig en0 alias 192.0.2.39 255.255.255.255
+   ```
+
+2. Publish the container's `:443` on that address at a high port
+   (`AIPORT_PUBLISH_PORT`, 18443). Docker on a Mac runs as the user, and macOS
+   lets a user bind a port below 1024 only on the wildcard address, so a native
+   pi-port's `*:443` would answer instead. pf forwards the alias's `:443`:
+
+   ```bash
+   echo "rdr pass on en0 inet proto tcp from any to 192.0.2.39 port 443 -> 192.0.2.39 port 18443" \
+     | sudo pfctl -a com.apple/piport-docker -f -
+   sudo pfctl -E
+   # remove: sudo pfctl -a com.apple/piport-docker -F all
+   ```
+
+   Neither rule survives a reboot.
+
+3. Start it with the address it should report:
+
+   ```bash
+   AIPORT_ADVERTISE_IP=192.0.2.39 AIPORT_CONSOLE=192.0.2.1 \
+     docker compose -f compose.macos.yaml up -d --build
+   ```
+
+It connects out to the console and appears in Protect waiting to be adopted.
+Detection runs on the VM's CPU (no Core ML, no VideoToolbox, no Apple vehicle
+model). Identity is kept in the `piport-macos-data` volume; remove the AI Port
+in Protect before deleting it.
+
 ## Status web UI (optional)
 
 The repo-root `compose.yaml` includes a `webui` service that runs
