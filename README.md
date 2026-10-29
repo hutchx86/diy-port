@@ -67,7 +67,7 @@ AIPORT_CONSOLE_HOST=<console-ip> docker compose up -d --build
 | --- | --- | --- |
 | **What it is** | Ubiquiti AI Port appliance (Ambarella) | This repo's Python, on an SBC/PC |
 | **Firmware** | Ubiquiti, signed | None — the emulator itself |
-| **Detection model** | Ubiquiti's own classifier | Stock COCO model mapped to person/vehicle/animal: YOLOv5 on the RK3588 NPU, SSDLite MobileDet on a Coral, or YOLOv5n on CPU/Core ML |
+| **Detection model** | Ubiquiti's own classifier | Stock COCO model mapped to person/vehicle/animal (YOLOv5 on the RK3588 NPU, SSDLite MobileDet on a Coral, YOLOv5n on CPU/Core ML), plus optional plates, faces and vehicle attributes |
 | **Output** | Full Ubiquiti product behaviour | The subset this project implements |
 
 It is a protocol-compatible stand-in built on the same shared camera/chime
@@ -548,9 +548,10 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
 ## Roadmap / known limitations
 
 - **Known:** detection is a stock COCO model (person/vehicle/animal), not Ubiquiti's
-  classifier. Vehicle type/colour, license plates and faces (`enrich.py`, optional) use
-  open models and a **best-guess wire format** not yet confirmed against Protect; faces
-  match a local gallery, not Protect's own face enrolment.
+  classifier. Optional enrichment (`enrich.py`) adds vehicle type/colour, plates and
+  faces; faces are matched against Protect's known-faces DB (`UpdateFaceDBRequest`), but
+  the attribute and plate field mapping is a **best-guess wire format** not confirmed
+  against a real AI Port capture.
 - **Gap: no motion events for paired cameras.** While a camera is paired, Protect
   ignores the camera's own motion events (`EventSmartMotion`/`EventAnalytics`) and
   takes them from the AI Port, but pi-port doesn't send any yet. Paired cameras show
