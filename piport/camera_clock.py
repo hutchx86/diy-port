@@ -83,29 +83,36 @@ class Reader:
             self._stop.wait(5)
 
     def _session(self):
-        host, port = re.match(r"rtsp://([^:/]+):(\d+)/", self.url).groups()
-        sock = self._sock = socket.create_connection((host, int(port)), timeout=15)
-        rtsp = _Rtsp(sock)
-        head, sdp = rtsp.request("DESCRIBE", self.url, "Accept: application/sdp\r\n")
-        base = (re.search(r"Content-Base:\s*(\S+)", head, re.I) or [None, self.url + "/"])[1]
-        video = sdp.split("m=video", 1)[1].split("m=", 1)[0]
-        control = re.search(r"a=control:(\S+)", video).group(1)
-        track = control if control.startswith("rtsp://") else base.rstrip("/") + "/" + control
-        head, _ = rtsp.request("SETUP", track, "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n")
-        session = re.search(r"Session:\s*([^;\r\n]+)", head, re.I).group(1)
-        rtsp.request("PLAY", self.url, f"Session: {session}\r\nRange: npt=0.000-\r\n")
+        match = re.match(r"rtsps?://(?:[^@/]+@)?([^:/]+)(?::(\d+))?/", self.url)
+        if not match:
+            raise ValueError(f"unsupported RTSP URL: {self.url}")
+        sock = self._sock = socket.create_connection(
+            (match.group(1), int(match.group(2) or 554)), timeout=15)
+        session = None
         try:
+            rtsp = _Rtsp(sock)
+            head, sdp = rtsp.request("DESCRIBE", self.url, "Accept: application/sdp\r\n")
+            base = (re.search(r"Content-Base:\s*(\S+)", head, re.I)
+                    or [None, self.url + "/"])[1]
+            video = sdp.split("m=video", 1)[1].split("m=", 1)[0]
+            control = re.search(r"a=control:(\S+)", video).group(1)
+            track = control if control.startswith("rtsp://") else base.rstrip("/") + "/" + control
+            head, _ = rtsp.request("SETUP", track,
+                                   "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n")
+            session = re.search(r"Session:\s*([^;\r\n]+)", head, re.I).group(1)
+            rtsp.request("PLAY", self.url, f"Session: {session}\r\nRange: npt=0.000-\r\n")
             while not self._stop.is_set():
                 channel, packet = rtsp.interleaved()
                 if channel == 1:
                     for ntp_s, _rtp in parse_sender_reports(packet):
                         self.add_report(ntp_s, time.time())
         finally:
-            try:
-                sock.sendall(f"TEARDOWN {self.url} RTSP/1.0\r\nCSeq: 99\r\nSession: {session}"
-                             f"\r\n\r\n".encode())
-            except OSError:
-                pass
+            if session:
+                try:
+                    sock.sendall(f"TEARDOWN {self.url} RTSP/1.0\r\nCSeq: 99\r\nSession: {session}"
+                                 f"\r\n\r\n".encode())
+                except OSError:
+                    pass
             sock.close()
 
 

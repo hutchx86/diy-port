@@ -197,6 +197,14 @@ class TestZoneFiltering(Base):
         self.assertTrue(av._is_outside_detect_zones("Z", in_other, "licensePlate"))
         self.assertFalse(av._is_outside_detect_zones("Z", in_other))  # no type: any zone
 
+    def test_zone_without_ids_still_matches(self):
+        # Replay sets zones/types but no ids; a short id table must not drop polygons.
+        av._detect_zones["Q"] = [SQUARE]
+        av._detect_zone_types["Q"] = [["person"]]
+        av._detect_zone_ids.pop("Q", None)
+        self.assertEqual(av._zones_of("Q", [4, 4, 2, 2], "person"), [1])
+        self.assertFalse(av._is_outside_detect_zones("Q", [4, 4, 2, 2], "person"))
+
     def test_settings_carry_zone_types_and_survive_partial_updates(self):
         zones = {"1": {"coord": [0, 0, 10, 0, 10, 10, 0, 10], "objectTypes": ["vehicle"]},
                  "2": {"coord": [100, 0, 200, 0, 200, 100, 100, 100]}}
@@ -2151,6 +2159,23 @@ class TestDetectionRate(Base):
         self.assertAlmostEqual(av.STILL_TICKS / av.DETECT_FPS, 30, delta=tick)
         self.assertAlmostEqual(av.PARKED_MISS_TOLERANCE_TICKS / av.DETECT_FPS, 30, delta=tick)
         self.assertAlmostEqual(av.STATIONARY_RESUME_TICKS / av.DETECT_FPS, 6, delta=tick)
+
+    @unittest.skipIf(sys.platform == "darwin", "Linux default rates")
+    def test_linux_defaults_keep_wall_clock_timers(self):
+        # This module sets macOS rates at import; check a fresh interpreter with the real
+        # Linux defaults, where DETECT_FPS is floored to 2.
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("AIPORT_TICK_S", "AIPORT_DETECT_FPS", "AIPORT_MISS_S")}
+        out = subprocess.run(
+            [sys.executable, "-c",
+             "import avclient as a; print(a.TICK_INTERVAL_S, a.DETECT_FPS,"
+             " a.MOTION_MISS_TOLERANCE_TICKS, a.STILL_TICKS)"],
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            env=env, capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        interval, fps, miss, still = out.stdout.split()
+        self.assertEqual((float(interval), int(fps)), (0.5, 2))
+        self.assertEqual((int(miss), int(still)), (6, 60))
 
     def test_detection_never_slower_than_reporting(self):
         self.assertLessEqual(av.DETECT_INTERVAL_S, av.MOTION_POLL_INTERVAL_S)

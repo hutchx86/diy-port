@@ -86,9 +86,13 @@ env_number() {
     v=$(sed -n "s/^[[:space:]]*$1=//p" "$ENV_FILE" 2>/dev/null | tail -1 | sed 's/[[:space:]#].*//')
     [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]] && echo "$v" || echo "$2"
 }
-exec > >("$REPO/venv/bin/python" "$(dirname "$0")/log_writer.py" "$LOG" \
-             --max-mb "${PIPORT_LOG_MAX_MB:-$(env_number PIPORT_LOG_MAX_MB 50)}" \
-             --keep "${PIPORT_LOG_KEEP:-$(env_number PIPORT_LOG_KEEP 5)}") 2>&1
+if [ -x "$REPO/venv/bin/python" ] && [ -f "$(dirname "$0")/log_writer.py" ]; then
+    exec > >("$REPO/venv/bin/python" "$(dirname "$0")/log_writer.py" "$LOG" \
+                 --max-mb "${PIPORT_LOG_MAX_MB:-$(env_number PIPORT_LOG_MAX_MB 50)}" \
+                 --keep "${PIPORT_LOG_KEEP:-$(env_number PIPORT_LOG_KEEP 5)}") 2>&1
+else
+    echo "piport_service: no venv at $REPO/venv/bin/python; logging to stderr" >&2
+fi
 [ -n "${PIPORT_SERVICE_TEST:-}" ] || caffeinate -is -w $$ &
 
 while true; do

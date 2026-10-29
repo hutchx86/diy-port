@@ -339,10 +339,11 @@ venv/bin/pip install "fast-alpr[onnx]" opencv-python-headless   # optional: plat
 venv/bin/python scripts/fetch_models.py --backend cpu      # downloads yolov5n.onnx
 venv/bin/python scripts/fetch_models.py --face-models-only # optional: YuNet/SFace face models
 $EDITOR piport/aiport.cfg                                   # set [console] host + device_id
-sudo caffeinate -is venv/bin/python piport/run_all.py --iface en0 --state-dir ~/.piport-state
+caffeinate -is venv/bin/python piport/run_all.py --iface en0 --state-dir ~/.piport-state
 ```
 
-`sudo` is needed for UDP/10001 and TCP/443.
+No sudo is needed on macOS: since 10.14 a normal user can bind ports below 1024. Running it
+with sudo leaves the state dir and log root-owned, and the launchd agent then refuses to start.
 
 To run it as a service instead, install the launchd agent (no sudo):
 `scripts/macos_launchd.sh install` starts it at login, restarts it on exit, and re-reads

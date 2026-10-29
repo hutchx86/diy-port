@@ -179,7 +179,7 @@ def parse_proc_stat(text):
     """(busy, total) jiffies from /proc/stat's aggregate "cpu" line."""
     for line in text.splitlines():
         if line.startswith("cpu "):
-            values = [int(v) for v in line.split()[1:]]
+            values = [int(v) for v in line.split()[1:]][:8]   # guest time is already in user
             idle = values[3] + (values[4] if len(values) > 4 else 0)   # idle + iowait
             return sum(values) - idle, sum(values)
     return None

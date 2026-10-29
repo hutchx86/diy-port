@@ -63,9 +63,12 @@ def load_sidecar(clip_path, sidecar_path=None):
 
 
 def _probe(path, entries):
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-         f"stream={entries}", "-of", "csv=p=0", path], capture_output=True, text=True)
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+             f"stream={entries}", "-of", "csv=p=0", path], capture_output=True, text=True)
+    except OSError:
+        return ""
     return out.stdout.strip()
 
 
@@ -342,8 +345,11 @@ def summarize(sent):
 
 
 def _within(value, want):
-    lo, hi = (want, want) if isinstance(want, int) else want
-    return lo <= value <= hi
+    if isinstance(want, (int, float)):
+        want = [want, want]
+    if len(want) == 1:
+        want = [want[0], want[0]]
+    return want[0] <= value <= want[1]
 
 
 def check(expect, events):

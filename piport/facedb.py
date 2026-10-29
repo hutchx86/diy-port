@@ -41,7 +41,10 @@ def _embedding(block):
 
 
 def _pairs(doc, key):
-    return {k: v for k, v in (doc.get(key) or [])}
+    items = doc.get(key) or []
+    if isinstance(items, dict):
+        items = items.items()
+    return dict(items)
 
 
 class FaceDB:

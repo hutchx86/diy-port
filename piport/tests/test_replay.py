@@ -299,5 +299,13 @@ class TestRecordClipLogScan(unittest.TestCase):
         self.assertEqual(record_clip.scan_log(self.LOG, "000000000000"), {})
 
 
+class TestExpectations(unittest.TestCase):
+    def test_float_and_single_item_expectations(self):
+        self.assertTrue(replay._within(2, 2.0))
+        self.assertTrue(replay._within(2, [2]))
+        self.assertTrue(replay._within(2, [1, 3]))
+        self.assertFalse(replay._within(4, [1, 3]))
+
+
 if __name__ == "__main__":
     unittest.main()

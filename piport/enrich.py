@@ -242,8 +242,13 @@ class Enricher:
         if self._yunet is None:
             self._yunet = cv2.FaceDetectorYN.create(YUNET_PATH, "", (320, 320), FACE_SCORE_THRESH)
         if self._sface is None and os.path.exists(SFACE_PATH):
-            self._sface = cv2.FaceRecognizerSF.create(SFACE_PATH, "")
-        return self._yunet, self._sface
+            try:
+                self._sface = cv2.FaceRecognizerSF.create(SFACE_PATH, "")
+            except Exception:
+                log.warning("SFace unavailable -- faces tracked without embeddings",
+                            exc_info=True)
+                self._sface = False
+        return self._yunet, (self._sface or None)
 
     def plates(self, img_bgr, vehicle_coords):
         """Plates inside each vehicle box: [{coord, text, confidence(0-1), parent, width_px}].

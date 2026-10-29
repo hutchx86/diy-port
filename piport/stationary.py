@@ -33,9 +33,11 @@ def _crop(gray, box):
     x2 = max(0, min(w - 1, int(box[2])))
     y2 = max(0, min(h - 1, int(box[3])))
     if x2 <= x1:
-        x2 = min(w - 1, x1 + 1)
+        x2 = min(w, x1 + 1)
+        x1 = min(x1, x2 - 1)
     if y2 <= y1:
-        y2 = min(h - 1, y1 + 1)
+        y2 = min(h, y1 + 1)
+        y1 = min(y1, y2 - 1)
     crop = cv2.resize(gray[y1:y2, x1:x2], (CROP_SIZE, CROP_SIZE), interpolation=cv2.INTER_AREA)
     return cv2.GaussianBlur(crop, (3, 3), 0.5)
 

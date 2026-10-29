@@ -25,7 +25,7 @@ trap cleanup EXIT
 command -v docker >/dev/null 2>&1 || { echo "ERROR: docker not found" >&2; exit 1; }
 
 echo "== docker build -t $IMAGE . (context $ROOT) =="
-docker build "${BUILD_ARGS[@]}" --build-arg ACCEL=cpu -f docker/Dockerfile -t "$IMAGE" .
+docker build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} --build-arg ACCEL=cpu -f docker/Dockerfile -t "$IMAGE" .
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 echo "== starting $NAME (host networking) =="

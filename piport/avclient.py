@@ -947,7 +947,8 @@ def _zones_of(device_id, coord, object_type=None):
     if not polygons:
         return []
     types = _detect_zone_types.get(device_id) or [None] * len(polygons)
-    ids = _detect_zone_ids.get(device_id) or list(range(1, len(polygons) + 1))
+    ids = list(_detect_zone_ids.get(device_id) or ())
+    ids += list(range(len(ids) + 1, len(polygons) + 1))
     cx, cy = _protect_foot(device_id, coord)
     return [zid for poly, t, zid in zip(polygons, types, ids)
             if _zone_allows(t, object_type) and _point_in_polygon(cx, cy, poly)]
@@ -1976,8 +1977,7 @@ def _process_line_crossings(ws, device_id, tracker_id, tr, new_center):
 
 def _dedupe_detections(detections, iou_thresh=0.4):
     """Collapse same-type detections that heavily overlap, highest score first: NMS can leave
-    a full-body and a torso box (IoU just under the gate), which would open two tracks
-    segment)."""
+    a full-body and a torso box (IoU just under the gate), which would open two tracks."""
     out = []
     for d in sorted(detections, key=lambda d: -d["score"]):
         if any(d["objectType"] == k["objectType"] and _iou(d["coord"], k["coord"]) >= iou_thresh
@@ -2520,6 +2520,7 @@ def _close_line_events(ws, device_id, tracker_id, tr):
         except Exception:
             log.exception("failed to send line leave for line=%s tracker_id=%s deviceID=%s",
                           line_id, tracker_id, device_id)
+        entry["event_id"] = None
 
 
 def _moved_since(tr):
@@ -3084,23 +3085,23 @@ def _stop_motion_detector(device_id, preserve_tracks=False, ws=None):
             dev = _motion_state.get(device_id)
             open_tracks = list((dev or {}).get("tracks", {}).items())
             _motion_state.pop(device_id, None)
-        # Emit leave for anything still open (a discarded track with no leave
-        # leaves an orphaned event on the controller).
+        # One leave per camera event: participants share its event_id.
+        by_event = {}
         for tracker_id, tr in open_tracks:
-            if "event_id" not in tr:
-                continue   # never joined an event (held, unconfirmed or parked): nothing to close
+            if "event_id" in tr:
+                by_event.setdefault(tr["event_id"], []).append((tracker_id, tr))
+        for event_id, members in by_event.items():
+            tracker_id, tr = _leave_track(members)
             try:
-                _send_smart_detect_event(ws, device_id, edge_type="leave",
-                                          event_id=tr["event_id"], stationary=True,
-                                          object_type=tr["objectType"], coord=tr["coord"],
-                                          confidence=tr["score"],
-                                          first_shown_ms=tr["first_shown_ms"],
-                                          tracker_id=tracker_id)
-                log.info("emitted leave for discarded track tracker_id=%s deviceID=%s "
-                          "(detector stopping)", tracker_id, device_id)
+                _send_smart_detect_event(ws, device_id, edge_type="leave", event_id=event_id,
+                                         stationary=True, object_type=tr["objectType"],
+                                         coord=tr["coord"], confidence=tr["score"],
+                                         first_shown_ms=tr["first_shown_ms"],
+                                         tracker_id=tracker_id)
+                log.info("emitted leave for event %s deviceID=%s (detector stopping)",
+                         event_id, device_id)
             except Exception:
-                log.exception("failed to emit leave for discarded tracker_id=%s deviceID=%s",
-                              tracker_id, device_id)
+                log.exception("failed to emit leave for event %s deviceID=%s", event_id, device_id)
     ev = _motion_poll_stop.pop(device_id, None)
     if ev:
         ev.set()
@@ -4047,9 +4048,9 @@ def _apply_motion_settings(payload):
 
 def _stop_all_streams(preserve_tracks=False):
     for device_id in list(set(_active_streams) | set(_stream_points)):
+        _stream_points.pop(device_id, None)
         _stop_stream(device_id)
         _stop_motion_detector(device_id, preserve_tracks=preserve_tracks)
-    _stream_points.clear()
 
 
 def _version_from_update_uri(uri):
@@ -4104,9 +4105,9 @@ def handle_function(ws, msg, device_info):
                 reply_status = "stopped"
         else:
             if device_id:
+                _stream_points.pop(device_id, None)
                 _stop_stream(device_id)
                 _stop_motion_detector(device_id, ws=ws)
-                _stream_points.pop(device_id, None)
             reply_status = "stopped"
         # usedPoints MUST be on every reply (start and stop): without it Protect sets
         # utilization to the maximum and re-pairing fails with estimated_capacity_exceeded.
@@ -4136,8 +4137,9 @@ def handle_function(ws, msg, device_info):
                               payload.get("height"), url=url)
                 _start_motion_detector(ws, device_id, preserve_tracks=True)
                 # Counted, health-watched and stall-checked like a UiStreamControl camera.
-                _stream_points[device_id] = _stream_points_for(
-                    payload.get("width"), payload.get("height"), payload.get("fps"))
+                points = _stream_points_for(payload.get("width"), payload.get("height"),
+                                            payload.get("fps"))
+                _stream_points[device_id] = points if points is not None else STREAM_POINT_TIERS[0][1]
                 _stream_started_at[device_id] = time.monotonic()
                 _start_status_watch()
                 reply_status = "started"
@@ -4147,9 +4149,9 @@ def handle_function(ws, msg, device_info):
             # Stop, don't forget: Protect often re-issues only streaming:true
             # (not ChangeVideoSettings), and the destinations are still valid.
             _onvif.stop_device(device_id)
+            _stream_points.pop(device_id, None)
             _stop_stream(device_id)
             _stop_motion_detector(device_id, ws=ws)
-            _stream_points.pop(device_id, None)
         send_msg(ws, "OnvifStreamControl", {"status": reply_status, "usedPoints": _used_points()},
                  in_response_to=msg_id)
         if device_id and reply_status == "started":

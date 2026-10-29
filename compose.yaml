@@ -30,6 +30,7 @@ services:
       AIPORT_DEBUG: "${AIPORT_DEBUG:-}"
     # Persist adoption state/certs across `up -d --build`.
     command: ["--state-dir", "/data"]
+    shm_size: 256m   # per-camera snapshot JPEGs live in /dev/shm
     volumes:
       - piport-data:/data
     # volumes:

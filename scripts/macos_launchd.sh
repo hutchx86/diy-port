@@ -96,7 +96,7 @@ start() {
 
 status() {
     if loaded; then
-        launchctl print "$DOMAIN/$LABEL" | grep -E "^\s*(state|pid|last exit code|runs) =" \
+        launchctl print "$DOMAIN/$LABEL" | grep -E "^[[:space:]]*(state|pid|last exit code|runs) =" \
             | sed 's/^[[:space:]]*/  /'
     else
         echo "  not loaded"
@@ -143,7 +143,7 @@ case "${1:-}" in
     status) status ;;
     logs) exec tail -n 50 -F "$LOG" ;;
     *)
-        sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'
+        echo "usage: $0 install|uninstall|restart|stop|start|status|logs" >&2
         exit 2
         ;;
 esac

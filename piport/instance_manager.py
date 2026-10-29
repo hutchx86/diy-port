@@ -18,6 +18,7 @@ import json
 import os
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -121,7 +122,7 @@ def _build_unit(entry):
         "--hostname", entry["hostname"],
         "--state-dir", entry["state_dir"],
     ]
-    exec_start = f"{sys.executable} {run_all} " + " ".join(common_args)
+    exec_start = " ".join(shlex.quote(a) for a in [sys.executable, run_all] + common_args)
 
     pre_lines = []
     post_lines = []
@@ -130,18 +131,20 @@ def _build_unit(entry):
         # '-' prefix tolerates nonzero exit: cleanup only does real work after a crash
         # left the interface behind (a normal first start has nothing to delete).
         pre_lines = [
-            f"ExecStartPre=-/sbin/ip link del {iface}",
-            f"ExecStartPre=/sbin/ip link add link {parent} name {iface} "
-            f"address {mac_colons} type macvlan mode bridge",
-            f"ExecStartPre=/sbin/ip link set {iface} up",
+            f"ExecStartPre=-/sbin/ip link del {shlex.quote(iface)}",
+            f"ExecStartPre=/sbin/ip link add link {shlex.quote(parent)} "
+            f"name {shlex.quote(iface)} address {shlex.quote(mac_colons)} type macvlan mode bridge",
+            f"ExecStartPre=/sbin/ip link set {shlex.quote(iface)} up",
         ]
         if entry.get("netmode") == "static":
             prefix = config.netmask_to_prefix(entry.get("netmask"))
             pre_lines.append(
-                f"ExecStartPre=/sbin/ip addr add {entry['ip']}/{prefix} dev {iface}")
+                f"ExecStartPre=/sbin/ip addr add {shlex.quote(str(entry['ip']))}/{prefix} "
+                f"dev {shlex.quote(iface)}")
             if entry.get("gateway"):
                 pre_lines.append(
-                    f"ExecStartPre=-/sbin/ip route add default via {entry['gateway']} dev {iface}")
+                    f"ExecStartPre=-/sbin/ip route add default via "
+                    f"{shlex.quote(str(entry['gateway']))} dev {shlex.quote(iface)}")
             post_lines = [
                 f"ExecStopPost=-/sbin/ip link del {iface}",
             ]
@@ -153,8 +156,9 @@ def _build_unit(entry):
             dhclient_conf = os.path.join(entry["state_dir"], "dhclient.conf")
             with open(dhclient_conf, "w") as f:
                 f.write(f'send host-name "{entry["hostname"]}";\n')
-            pre_lines.append(f"ExecStartPre=/usr/sbin/dhclient -pf {pidfile} -lf {leases} "
-                             f"-cf {dhclient_conf} {iface}")
+            pre_lines.append(f"ExecStartPre=/usr/sbin/dhclient -pf {shlex.quote(pidfile)} "
+                             f"-lf {shlex.quote(leases)} -cf {shlex.quote(dhclient_conf)} "
+                             f"{shlex.quote(iface)}")
             post_lines = [
                 f"ExecStopPost=-/usr/bin/pkill -f 'dhclient.* {iface}$'",
                 f"ExecStopPost=-/sbin/ip link del {iface}",

@@ -116,7 +116,7 @@ def startup_regions(frame_shape):
     """Squares the height (or width) of the frame covering all of it: one full look at
     start, so objects already there (parked cars) are found without any motion."""
     h, w = frame_shape[:2]
-    size = min(h, w) // 4 * 4
+    size = max(4, min(h, w) // 4 * 4)
     long_side = max(h, w)
     count = max(1, -(-long_side // size))
     offsets = [0] if count == 1 else [round(i * (long_side - size) / (count - 1))

@@ -42,6 +42,7 @@ def ensure_cert():
     subprocess.run([
         "openssl", "ecparam", "-out", KEY_PATH, "-name", "prime256v1", "-genkey", "-noout",
     ], check=True)
+    os.chmod(KEY_PATH, 0o600)
     subprocess.run([
         "openssl", "req", "-new", "-x509", "-sha256", "-key", KEY_PATH, "-out", CERT_PATH,
         "-days", "36500", "-subj", "/O=piport/CN=piport",

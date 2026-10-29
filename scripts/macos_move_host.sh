@@ -9,7 +9,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 USER_HOME="$(eval echo "~${SUDO_USER:-$USER}")"
 STATE_DIR="${PIPORT_STATE_DIR:-$USER_HOME/.piport-state}"
 
-usage() { echo "usage: $0 export <bundle.tgz> [--iface IFACE] | import <bundle.tgz>" >&2; exit 1; }
+usage() {
+    echo "usage: $0 export <bundle.tgz> [--iface IFACE] [--state-dir DIR] | import <bundle.tgz>" >&2
+    exit 1
+}
 [ $# -ge 2 ] || usage
 cmd="$1"; bundle="$2"; shift 2
 iface=""

@@ -303,7 +303,7 @@ class FlvPush:
                 log.error(*msg)
             else:
                 log.debug(*msg)
-        return sent > 0
+        return sent > 0 and codec_error is None
 
 
 PUSH_RETRY_MAX_S = 30.0

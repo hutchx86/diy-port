@@ -144,10 +144,10 @@ def _read_snapshot_jpeg(timeout=2.0):
     while True:
         try:
             names = [n for n in os.listdir(STREAM_DIR) if n.endswith(".jpg")]
+            names.sort(key=lambda n: os.path.getmtime(os.path.join(STREAM_DIR, n)),
+                       reverse=True)
         except OSError:
             names = []
-        names.sort(key=lambda n: os.path.getmtime(os.path.join(STREAM_DIR, n)),
-                   reverse=True)
         for name in names[:3]:
             try:
                 with open(os.path.join(STREAM_DIR, name), "rb") as f:

@@ -112,9 +112,8 @@ def main():
                      help="interface to bind/derive identity from; defaults to cfg [network] iface, "
                           "else the default-route interface (auto-detected)")
     ap.add_argument("--bind-ip", default="0.0.0.0",
-                     help="bind the UDP socket to this specific IP instead of 0.0.0.0, "
-                          "so this can coexist with another discovery responder "
-                          "(e.g. aikey-emu's) on the same host")
+                     help="IP to advertise in discovery replies; the socket still binds "
+                          "0.0.0.0 so broadcasts arrive (use --iface to scope reception)")
     ap.add_argument("--mac", default=None, help="override MAC (hex, with or without colons)")
     ap.add_argument("--hostname", default=cfg["hostname"])
     ap.add_argument("--platform", default=cfg.get("discovery_platform") or cfg["platform"],

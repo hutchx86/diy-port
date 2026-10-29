@@ -61,5 +61,11 @@ class TestStillThere(unittest.TestCase):
         self.assertEqual(self.state["changed"], 0)
         self.assertTrue(stationary.still_there(self.state, occluded))   # counting from 0 again
 
+    def test_crop_at_the_frame_edge_is_not_empty(self):
+        # A box clipped at the last column must still yield a one-pixel crop, not cv2's
+        # "!ssize.empty()" assertion on every later frame.
+        crop = stationary._crop(np.zeros((100, 100), np.uint8), (99, 10, 120, 20))
+        self.assertEqual(crop.shape, (stationary.CROP_SIZE, stationary.CROP_SIZE))
+
 if __name__ == "__main__":
     unittest.main()

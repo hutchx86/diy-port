@@ -323,10 +323,15 @@ def netmask_to_prefix(netmask):
 
 def atomic_write_json(path, obj):
     """Write obj as JSON atomically (tmp + os.replace) so readers never see a torn write."""
-    tmp = path + ".tmp"
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump(obj, f)
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
