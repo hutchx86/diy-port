@@ -2618,13 +2618,17 @@ class HwDecoderSelection(unittest.TestCase):
     def test_auto_on_macos_is_videotoolbox(self):
         os.environ.pop("AIPORT_HWDEC", None)
         with mock.patch.object(av.sys, "platform", "darwin"), \
-                mock.patch.object(av, "_is_pi4", return_value=False):
+                mock.patch.object(av, "_is_pi4", return_value=False), \
+                mock.patch.object(av, "FFMPEG_BIN", "ffmpeg"):
             self.assertEqual(av._hwdec_args("hevc"), ["-hwaccel", "videotoolbox"])
 
     def test_auto_on_plain_linux_is_software(self):
         os.environ.pop("AIPORT_HWDEC", None)
+        # A stock ffmpeg binary: on an RK3588 host FFMPEG_BIN is the rkmpp build, which
+        # auto-selects rkmpp before the platform check.
         with mock.patch.object(av.sys, "platform", "linux"), \
-                mock.patch.object(av, "_is_pi4", return_value=False):
+                mock.patch.object(av, "_is_pi4", return_value=False), \
+                mock.patch.object(av, "FFMPEG_BIN", "ffmpeg"):
             self.assertEqual(av._hwdec_args("h264"), [])
 
     def test_none_is_software(self):
