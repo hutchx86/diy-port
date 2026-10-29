@@ -2,13 +2,15 @@
 # Copyright (C) 2026 hutchx86
 """Detection post-processing shared by every detector backend.
 
-Three output layouts are handled:
+Four output layouts are handled:
 
   * raw heads -- three ``[1,255,H,W]`` tensors needing the anchor/grid decode
     (Rockchip rknn_model_zoo yolov5s_relu; adapted from that repo's reference
     script).
   * Ultralytics -- one ``[1,N,5+num_classes]`` tensor with box decode and
     sigmoid baked in (ONNX / TFLite / Edge TPU exports).
+  * anchor-free -- one ``[1,4+num_classes,N]`` tensor, no objectness column
+    (YOLOv8/v9/v11, e.g. Frigate's ``yolov9-s-320.onnx``).
   * SSD post-processed -- TFLite_Detection_PostProcess's boxes/classes/scores/
     count, decode and NMS done in-graph (Google's Coral MobileDet / SSD
     MobileNet models, as Frigate ships).
@@ -183,6 +185,48 @@ def post_process_ultralytics(output, box_scale=1.0):
     return _nms_per_class(xyxy, classes[keep], scores[keep])
 
 
+def post_process_anchor_free(output, box_scale=1.0):
+    """One [1,4+classes,N] output (YOLOv8/v9/v11) -> (boxes xyxy px, classes, scores),
+    or Nones. No objectness: a box's score is its best class score."""
+    pred = output[0].T  # (N, 4+num_classes): xywh, class scores
+    class_conf = pred[:, 4:]
+    classes = np.argmax(class_conf, axis=1)
+    scores = class_conf[np.arange(class_conf.shape[0]), classes]
+    keep = scores >= OBJ_THRESH
+    if not np.any(keep):
+        return None, None, None
+    xywh = pred[keep, :4] * box_scale
+    xyxy = np.copy(xywh)
+    xyxy[:, 0] = xywh[:, 0] - xywh[:, 2] / 2
+    xyxy[:, 1] = xywh[:, 1] - xywh[:, 3] / 2
+    xyxy[:, 2] = xywh[:, 0] + xywh[:, 2] / 2
+    xyxy[:, 3] = xywh[:, 1] + xywh[:, 3] / 2
+    return _nms_per_class(xyxy, classes[keep], scores[keep])
+
+
+def layout(output_shapes, num_classes):
+    """'ultralytics' ([1,N,5+nc]), 'anchor_free' ([1,4+nc,N]) or 'raw_heads'."""
+    if len(output_shapes) == 1 and len(output_shapes[0]) == 3:
+        shape = output_shapes[0]
+        if shape[-1] == 5 + num_classes:
+            return "ultralytics"
+        if shape[1] == 4 + num_classes:
+            return "anchor_free"
+    return "raw_heads"
+
+
+def resize(frame_rgb, size):
+    """Resize an HxWx3 frame to size x size: OpenCV's area filter when present, else
+    nearest-neighbour in numpy (no hard OpenCV dependency)."""
+    try:
+        import cv2
+        return cv2.resize(frame_rgb, (size, size), interpolation=cv2.INTER_AREA)
+    except ImportError:
+        ys = (np.arange(size) * frame_rgb.shape[0] / size).astype(int)
+        xs = (np.arange(size) * frame_rgb.shape[1] / size).astype(int)
+        return frame_rgb[ys][:, xs]
+
+
 def post_process_ssd(boxes, classes, scores, count, img_size):
     """TFLite_Detection_PostProcess outputs -> (boxes xyxy px, classes, scores),
     or Nones. boxes are [1,N,4] normalized (ymin, xmin, ymax, xmax); NMS has
@@ -198,8 +242,8 @@ def post_process_ssd(boxes, classes, scores, count, img_size):
 
 
 def to_results(boxes, classes, scores, labels):
-    """NMS output -> [{"objectType", "score", "box": (x1,y1,x2,y2)}], mapped to
-    AI Port's person/vehicle/animal vocabulary, score-descending."""
+    """NMS output -> [{"objectType", "label", "score", "box": (x1,y1,x2,y2)}], mapped
+    to AI Port's person/vehicle/animal vocabulary (label: the COCO class), score-descending."""
     if boxes is None:
         return []
     results = []
@@ -209,6 +253,7 @@ def to_results(boxes, classes, scores, labels):
         if not mapped:
             continue
         x1, y1, x2, y2 = [float(v) for v in box]
-        results.append({"objectType": mapped, "score": float(score), "box": (x1, y1, x2, y2)})
+        results.append({"objectType": mapped, "label": coco_label.strip(), "score": float(score),
+                        "box": (x1, y1, x2, y2)})
     results.sort(key=lambda r: -r["score"])
     return results

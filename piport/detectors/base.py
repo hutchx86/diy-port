@@ -34,11 +34,23 @@ class Detector:
         space, or Nones when nothing passes the threshold."""
         raise NotImplementedError
 
-    def detect(self, frame_rgb):
-        """frame_rgb: HxWx3 uint8 RGB, already resized to input_size (plain
-        stretch, no letterboxing). Returns {"objectType", "score", "box":
-        (x1,y1,x2,y2)} in input_size pixel space, score-descending, mapped to
-        AI Port's person/vehicle/animal vocabulary."""
+    def detect(self, frame_rgb, min_score=None):
+        """frame_rgb: HxWx3 uint8 RGB of any size -- a whole frame or a region crop;
+        it's stretched to input_size (no letterboxing) when it isn't already. Returns
+        {"objectType", "label", "score", "box": (x1,y1,x2,y2)} in frame_rgb's pixel
+        space, score-descending, mapped to AI Port's person/vehicle/animal vocabulary.
+        min_score (optional) drops boxes below it, on top of the backend's threshold."""
+        h, w = frame_rgb.shape[:2]
+        if (w, h) != (self.input_size, self.input_size):
+            frame_rgb = postprocess.resize(frame_rgb, self.input_size)
         with self._lock:
             boxes, classes, scores = self._infer(frame_rgb)
-        return postprocess.to_results(boxes, classes, scores, self._labels)
+        results = postprocess.to_results(boxes, classes, scores, self._labels)
+        sx, sy = w / self.input_size, h / self.input_size
+        if (sx, sy) != (1.0, 1.0):
+            for r in results:
+                x1, y1, x2, y2 = r["box"]
+                r["box"] = (x1 * sx, y1 * sy, x2 * sx, y2 * sy)
+        if min_score is not None:
+            results = [r for r in results if r["score"] >= min_score]
+        return results

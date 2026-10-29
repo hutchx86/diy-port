@@ -58,7 +58,9 @@ def main():
                           "than one")
     args = ap.parse_args()
 
-    if os.geteuid() != 0:
+    # macOS lets any user bind ports below 1024 (since 10.14), so it runs under the user's own
+    # account there (scripts/macos_launchd.sh); elsewhere :443 needs root.
+    if os.geteuid() != 0 and sys.platform != "darwin":
         sys.exit("run_all.py needs root (binds ports 10001, 443)")
 
     args.iface = config.resolve_iface(args.iface, cfg)
@@ -69,8 +71,14 @@ def main():
         print(f"No --mac given; using MAC {args.mac}")
 
     # Bind the interface's own IP, not 0.0.0.0: a wildcard :443 would block
-    # other instances' :443. Falls back to 0.0.0.0 if resolution fails.
-    if args.bind_ip == "0.0.0.0":
+    # other instances' :443. Falls back to 0.0.0.0 if resolution fails. Not on macOS without
+    # root: there a user may bind ports below 1024 only on the wildcard address (binding
+    # en0's IP to :443 was refused), and one Mac runs one instance. Components still report
+    # the interface's own IP.
+    if args.bind_ip == "0.0.0.0" and sys.platform == "darwin" and os.geteuid() != 0:
+        print(f"Binding 0.0.0.0: macOS lets a non-root user bind :443 only on the wildcard "
+              f"address (it still reports {args.iface}'s own IP)")
+    elif args.bind_ip == "0.0.0.0":
         resolved = config.resolve_ip(args.iface, cfg)
         if resolved and resolved != "0.0.0.0":
             args.bind_ip = resolved

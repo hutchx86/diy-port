@@ -73,7 +73,7 @@ class TestBsdFallbacks(unittest.TestCase):
     IFCONFIG = ("en0: flags=8863<UP,BROADCAST,RUNNING> mtu 1500\n"
                 "\tether c8:89:f3:d4:c3:cd\n"
                 "\tinet6 fe80::1%en0 prefixlen 64 scopeid 0xe\n"
-                "\tinet 192.168.1.227 netmask 0xffffff00 broadcast 192.168.1.255\n")
+                "\tinet 192.0.2.10 netmask 0xffffff00 broadcast 192.0.2.255\n")
 
     def _outputs(self, **by_cmd):
         return lambda cmd: by_cmd.get(cmd[0], "")
@@ -104,7 +104,7 @@ class TestBsdFallbacks(unittest.TestCase):
     def test_ip_from_ifconfig(self):
         with mock.patch("config.subprocess.run", side_effect=OSError), \
                 mock.patch("config._run", self._outputs(ifconfig=self.IFCONFIG)):
-            self.assertEqual(config._iface_ip("en0"), "192.168.1.227")
+            self.assertEqual(config._iface_ip("en0"), "192.0.2.10")
 
     def test_busybox_inet_addr_rejected(self):
         busybox = "eth0  Link encap:Ethernet\n  inet addr:10.0.0.5  Bcast:10.0.0.255\n"
@@ -180,6 +180,22 @@ class TestLoadConfig(unittest.TestCase):
         finally:
             os.environ.pop("AIPORT_HOSTNAME", None)
             os.unlink(path)
+
+    def test_env_overrides_model_identity(self):
+        # sysid, type, discovery platform and guid from the env.
+        env = {"AIPORT_SYSID": "0x1234", "AIPORT_PLATFORM": "Test Type",
+               "AIPORT_DISCOVERY_PLATFORM": "Test SKU",
+               "AIPORT_GUID": "11111111-2222-3333-4444-555555555555"}
+        for k in env:
+            saved = os.environ.get(k)
+            self.addCleanup(lambda k=k, saved=saved: os.environ.__setitem__(k, saved)
+                            if saved is not None else os.environ.pop(k, None))
+        os.environ.update(env)
+        cfg = config.load_config("/nonexistent/aiport.cfg")
+        self.assertEqual(config.sysid_int(cfg), 0x1234)
+        self.assertEqual(cfg["platform"], "Test Type")
+        self.assertEqual(cfg["discovery_platform"], "Test SKU")
+        self.assertEqual(cfg["guid"], env["AIPORT_GUID"])
 
 
 class TestFirmwarePin(unittest.TestCase):
@@ -265,6 +281,15 @@ class TestRedact(unittest.TestCase):
         self.assertTrue(config.RedactFilter().filter(rec))
         self.assertEqual(rec.getMessage(), "url=rtsp://<redacted>@cam/1 n=3")
 
+
+
+class TestAdvertisedIp(unittest.TestCase):
+    def test_reported_ip_can_differ_from_the_bound_one(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"AIPORT_ADVERTISE_IP": "192.168.1.39"}):
+            self.assertEqual(config.advertised_ip("192.168.215.2"), "192.168.1.39")
+        with mock.patch.dict(os.environ, {"AIPORT_ADVERTISE_IP": ""}):
+            self.assertEqual(config.advertised_ip("192.168.215.2"), "192.168.215.2")
 
 if __name__ == "__main__":
     unittest.main()

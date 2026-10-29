@@ -213,5 +213,12 @@ class TestPushManager(unittest.TestCase):
                                                 "width": 3840, "height": 2160, "fps": 12})
 
 
+
+class TestRetryDelay(unittest.TestCase):
+    def test_backs_off_only_while_pushes_send_nothing(self):
+        delays = [onvif_push.retry_delay(1, n) for n in range(0, 10)]
+        self.assertEqual(delays, [1, 1, 1, 1, 2, 4, 8, 16, 30, 30])
+        self.assertEqual(onvif_push.retry_delay(0.2, 0), 1.0)   # never under a second
+
 if __name__ == "__main__":
     unittest.main()

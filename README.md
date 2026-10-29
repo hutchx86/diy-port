@@ -299,20 +299,33 @@ discovery and adoption fail there. With no `/sys`, `/proc` or `ip`, `config.py` 
 the interface, MAC and IP through `route`, `networksetup` and `ifconfig` (`--iface en0`
 to pick one explicitly). The detector uses onnxruntime's Core ML provider on the
 Neural Engine by default: ~6.5 ms vs ~37 ms per frame on CPU (M1 Pro, `yolov5n`),
-with the same detections. `AIPORT_ORT_PROVIDER=cpu` forces CPU; `coreml` requests
+with the same detections; float32 models such as YOLOv9 run on Core ML's
+NeuralNetwork format (~3 ms, M2). `AIPORT_ORT_PROVIDER=cpu` forces CPU; `coreml` requests
 it (and warns, then uses CPU, if onnxruntime has no Core ML provider).
 
 ```bash
 brew install ffmpeg
 python3 -m venv venv
 venv/bin/pip install -r piport/requirements.txt onnxruntime
-python3 scripts/fetch_models.py --backend cpu    # downloads yolov5n.onnx
-$EDITOR piport/aiport.cfg                        # set [console] host (+ identity)
+venv/bin/pip install fast-alpr opencv-python-headless      # optional: plates + faces (enrich.py)
+venv/bin/python scripts/fetch_models.py --backend cpu      # downloads yolov5n.onnx
+venv/bin/python scripts/fetch_models.py --face-models-only # optional: YuNet/SFace face models
+$EDITOR piport/aiport.cfg                                   # set [console] host + device_id
 sudo caffeinate -is venv/bin/python piport/run_all.py --iface en0 --state-dir ~/.piport-state
 ```
 
-`sudo` is needed for UDP/10001 and TCP/443. `caffeinate -is` keeps the Mac awake while
-the emulator runs — a sleeping Mac drops off the console.
+`sudo` is needed for UDP/10001 and TCP/443.
+
+- `caffeinate -is` stops the Mac sleeping while it runs (a sleeping Mac drops off the console).
+- `--iface` is the default-route interface (`route -n get default`); the MAC is derived from it,
+  so each Mac gets its own.
+- **Every AI Port needs its own, stable `device_id`.** The default in `aiport.cfg` is shared, so on
+  a second machine set a fresh one once (e.g. `uuidgen | tr A-Z a-z`) in `aiport.cfg`, or pass the
+  same `--device-id` on every start; changing it makes Protect see a different device.
+- A new machine (empty `--state-dir`) appears in Protect as a new "AI Port": adopt it and pair
+  cameras to it. Adoption state lives in the state dir, so keep it across restarts.
+- Without the optional enrichment packages it runs person/vehicle/animal only; plate models
+  download to `~/.cache` on the first plate read.
 
 ### Docker (console on the same host)
 
@@ -400,11 +413,14 @@ reproducible, they are not committed; `scripts/fetch_models.py` downloads them
 | `yolov5s_relu.onnx` (27.6 MiB) | RKNN conversion (`.rknn`) | Rockchip model zoo delivery: <https://ftrg.zbox.filez.com/v2/delivery/data/95f00b0fc900458ba134f8b180b3f7a1/examples/yolov5/yolov5s_relu.onnx> |
 | anchors, COCO labels, bus.jpg, calibration subset | RKNN conversion | <https://github.com/airockchip/rknn_model_zoo> (tag `v2.3.2`) |
 
-The `cpu` backend also accepts the Rockchip `yolov5s_relu.onnx`, and the
-`edgetpu` backend an Ultralytics YOLOv5 Edge TPU export, via `[hardware]
-detector_model` / `AIPORT_MODEL_PATH`; output layouts are auto-detected.
-`piport/models/coco_90_labels.txt` (the MobileDet class ids) is Google's
-`coco_labels.txt`, Apache-2.0.
+The CPU backend uses Ultralytics `yolov5n.onnx` and still accepts the Rockchip
+`yolov5s_relu.onnx` via `AIPORT_MODEL_PATH`, and anchor-free YOLOv8/v9 exports such as
+Frigate's `yolov9-s-320.onnx` (all three layouts are auto-detected; the input size is read
+from the model). The
+Dockerfile downloads and sha256-verifies the CPU model at build time.
+The `edgetpu` backend also takes an Ultralytics YOLOv5 Edge TPU export via `[hardware]
+detector_model` / `AIPORT_MODEL_PATH`. `piport/models/coco_90_labels.txt` (the MobileDet
+class ids) is Google's `coco_labels.txt`, Apache-2.0.
 
 `yolov5s_relu.rknn` is produced on an x86_64 machine with `rknn-toolkit2`
 (see `rknn_convert/convert.py` and `piport/README.md`):
@@ -451,9 +467,9 @@ Device identity, network mode, the console address and the detector live in
 | `[hardware] detector_model` | — | Model file for that backend; blank = its default in `models/` (env `AIPORT_MODEL_PATH`) |
 
 Detector/runtime environment overrides: `AIPORT_DETECTOR`, `AIPORT_MODEL_PATH`,
-`AIPORT_OBJ_THRESH`, `AIPORT_HWDEC`, `AIPORT_ORT_INTRA_THREADS`, `AIPORT_ORT_PROVIDER`,
-`AIPORT_MOTION_GATE` / `AIPORT_MOTION_GATE_THRESH` (see `piport/README.md`). The
-old `AIPORT_BACKEND=auto|rknn|onnx` name is still accepted (`onnx` = `cpu`).
+`AIPORT_OBJ_THRESH`, `AIPORT_HWDEC`, `AIPORT_HW_SCALE`, `AIPORT_FRAME_JPEG_FPS`, `AIPORT_ORT_INTRA_THREADS`, `AIPORT_ORT_PROVIDER`, `AIPORT_TICK_S`, `AIPORT_DETECT_FPS`, `AIPORT_CONFIRM_MS`, `AIPORT_MISS_S`, `AIPORT_TRUE_THRESH`, `AIPORT_RESUME_S`, `AIPORT_BOX_DELAY_MS`, `AIPORT_LPR`, `AIPORT_FACE`,
+`AIPORT_MOTION_GATE` / `AIPORT_MOTION_THRESHOLD` / `AIPORT_MOTION_CONTOUR_AREA`, `AIPORT_REGIONS` / `AIPORT_DETECT_SIZE`, `AIPORT_TRACKER`, `AIPORT_LENS_FILTER` / `AIPORT_LENS_MIN_HEIGHT` (see `piport/README.md`).
+The old `AIPORT_BACKEND=auto|rknn|onnx` name is still accepted (`onnx` = `cpu`).
 `AIPORT_ORT_PROVIDER` is `auto` by default (Core ML when onnxruntime offers it, else
 CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if absent).
 
@@ -464,6 +480,10 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
   ```bash
   cd piport && python3 -m unittest discover -s tests
   ```
+
+  Tests needing OpenCV, ffmpeg, Norfair or macOS skip without them. The enrichment check
+  on real images runs when `AIPORT_ENRICH_SAMPLES` names a folder holding `plate.png` and
+  `lena.jpg`, with fast-alpr and the face models installed.
 
 - Container smoke test (no console/camera required):
 
@@ -476,9 +496,21 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
 
 ## Roadmap / known limitations
 
-- **Known:** detection is a stock COCO model (person/vehicle/animal), not
-  Ubiquiti's classifier; face recognition, license-plate recognition and
-  vehicle classification are not implemented.
+- **Known:** detection is a stock COCO model (person/vehicle/animal), not Ubiquiti's
+  classifier. Vehicle type/colour, license plates and faces (`enrich.py`, optional) use
+  open models and a **best-guess wire format** not yet confirmed against Protect; faces
+  match a local gallery, not Protect's own face enrolment.
+- **Gap: no motion events for paired cameras.** While a camera is paired, Protect
+  ignores the camera's own motion events (`EventSmartMotion`/`EventAnalytics`) and
+  takes them from the AI Port, but pi-port doesn't send any yet. Paired cameras show
+  no motion-only events, motion-triggered recording only follows smart detections,
+  and motion alerts don't fire. pi-port already runs a motion detector on every
+  frame; the missing piece is the exact `EventSmartMotion` start/pulse/stop payload
+  Protect expects. See `docs/protect-aiport-controller.md`.
+- **Gap: no audio detection for paired cameras.** Protect also drops a paired camera's
+  own `EventSmartAudio` (smoke/CO alarm, glass break, etc.), and pi-port's feature
+  flags list no audio types, so those detections are turned off while the camera is
+  paired.
 - **Known:** an assigned ONVIF camera depends on the AI Port for its video (no
   recording while the AI Port is down), gets the main stream on every channel,
   and AAC instead of Opus audio.

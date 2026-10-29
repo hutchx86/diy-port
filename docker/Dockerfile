@@ -27,7 +27,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN case "$ACCEL" in cpu|edgetpu|none) ;; *) echo "ACCEL must be cpu|edgetpu|none" >&2; exit 1 ;; esac \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
-        python3 python3-venv ffmpeg iproute2 ca-certificates curl \
+        python3 python3-venv ffmpeg iproute2 procps ca-certificates curl \
  && if [ "$ACCEL" = "edgetpu" ]; then \
         case "$TARGETARCH" in \
             arm64) sha="$LIBEDGETPU_SHA256_ARM64" ;; \

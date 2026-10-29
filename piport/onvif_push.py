@@ -244,11 +244,11 @@ class FlvPush:
                 proc.kill()
 
     def _run(self):
-        attempt = 0
+        attempt = failed = 0
         while not self._stop.is_set():
             attempt += 1
-            self._push_once(attempt)
-            if self._stop.wait(max(self.retry_s, 1.0)):
+            failed = 0 if self._push_once(attempt) else failed + 1
+            if self._stop.wait(retry_delay(self.retry_s, failed)):
                 break
         log.info("push %s/%s stopped", self.device_id, self.channel)
 
@@ -305,6 +305,18 @@ class FlvPush:
                 log.error(*msg)
             else:
                 log.debug(*msg)
+        return sent > 0
+
+
+PUSH_RETRY_MAX_S = 30.0
+
+
+def retry_delay(retry_s, failed):
+    """Seconds before the next push: Protect's retryInterval, doubling after the third push in
+    a row that sent nothing, up to PUSH_RETRY_MAX_S. An unreachable source otherwise started an
+    ffmpeg every second (live 2026-10-28)."""
+    base = max(retry_s, 1.0)
+    return min(PUSH_RETRY_MAX_S, base * 2 ** max(0, failed - 3)) if failed else base
 
 
 class PushManager:

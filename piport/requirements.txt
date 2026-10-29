@@ -11,3 +11,14 @@ numpy
 #   * CPU/Core ML (x86_64 / arm64, Apple-silicon macOS): pip install onnxruntime
 # detectors/ selects whichever backend is configured/present ([hardware] detector
 # or AIPORT_DETECTOR; AIPORT_BACKEND is the legacy spelling).
+#
+# Recommended, OpenCV: Frigate's motion gate, stationary-object checks and faces need it;
+# without it the motion gate falls back to an average diff that misses small or distant movers.
+#   pip install opencv-python-headless
+# Optional enrichment (enrich.py), any onnxruntime host:
+#   pip install opencv-python-headless fast-alpr   # license plates (fast-alpr) + faces (OpenCV)
+#   python3 scripts/fetch_models.py --face-models-only
+#
+# Optional, matching with Norfair (norfair_match.py; AIPORT_TRACKER). Its pins would pull
+# numpy below 2, which OpenCV 5 and onnxruntime need, so install it without them:
+#   pip install scipy && pip install --no-deps norfair==2.3.0 "filterpy>=1.4.5,<2"

@@ -15,6 +15,7 @@ Model binaries are not stored in this repo (see README).
   python3 scripts/fetch_models.py --backend cpu        # CPU/Core ML model
   python3 scripts/fetch_models.py --convert            # also build the .rknn (needs rknn-toolkit2, x86)
   python3 scripts/fetch_models.py --no-cpu-model       # RK3588 board: skip yolov5n.onnx
+  python3 scripts/fetch_models.py --face-models-only   # YuNet/SFace for face detection (enrich.py)
 """
 import argparse
 import hashlib
@@ -31,6 +32,14 @@ ONNX_URL = ("https://ftrg.zbox.filez.com/v2/delivery/data/"
 # decode baked in (one [1,N,85] output), much faster on CPU than yolov5s.
 YOLOV5N_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5n.onnx"
 YOLOV5N_SHA256 = "04f0e55c26f58d17145b36045780fe1250d5bd2187543e11568e5141d05b3262"
+# Face detection (YuNet, MIT) + recognition (SFace, Apache-2.0) for enrich.py, OpenCV zoo.
+OPENCV_ZOO = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models"
+FACE_MODELS = {
+    f"{OPENCV_ZOO}/face_detection_yunet/face_detection_yunet_2023mar.onnx":
+        "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    f"{OPENCV_ZOO}/face_recognition_sface/face_recognition_sface_2021dec.onnx":
+        "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+}
 UA = {"User-Agent": "piport-fetch-models"}
 
 # Single-file models per backend: dest name -> (url, sha256). Pinned digests;
@@ -107,9 +116,21 @@ def main():
     ap.add_argument("--force", action="store_true", help="re-download existing files")
     ap.add_argument("--no-cpu-model", action="store_true",
                     help="skip the CPU yolov5n.onnx (the RK3588 installer does not use it)")
+    ap.add_argument("--face-models", action="store_true",
+                    help="also fetch the YuNet/SFace face models (enrich.py; needs opencv)")
+    ap.add_argument("--face-models-only", action="store_true",
+                    help="fetch only the face models, nothing else")
     args = ap.parse_args()
     if args.convert and args.backend != "rknn":
         ap.error("--convert only applies to --backend rknn")
+
+    if args.face_models or args.face_models_only:
+        for url, sha in FACE_MODELS.items():
+            path = os.path.join(DIRS["models"], url.rsplit("/", 1)[1])
+            download(url, path, args.force)
+            verify_sha256(path, sha)
+        if args.face_models_only:
+            return
 
     if args.backend != "rknn":
         fetch_backend_model(args.backend, args.force)

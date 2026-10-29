@@ -2,9 +2,10 @@
 # Copyright (C) 2026 hutchx86
 """CPU backend (no accelerator): ONNX model via onnxruntime.
 
-Takes either an Ultralytics YOLOv5 ONNX export (one [1,N,85] output, default
-models/yolov5n.onnx) or Rockchip's yolov5s_relu.onnx (three raw heads); the
-layout is detected from the graph. On Apple silicon, onnxruntime's Core ML
+Takes an Ultralytics YOLOv5 ONNX export (one [1,N,85] output, default
+models/yolov5n.onnx), Rockchip's yolov5s_relu.onnx (three raw heads) or an
+anchor-free YOLOv8/v9/v11 export ([1,84,N], e.g. Frigate's yolov9-s-320.onnx);
+the layout and input size are read from the graph. On Apple silicon, onnxruntime's Core ML
 provider runs the model on the Neural Engine (~5-6x the CPU path); Linux and
 Docker builds only offer CPU. Slow next to an NPU/TPU -- fine for one or two
 cameras at the 1.5s detection tick.
@@ -20,15 +21,33 @@ from .base import Detector
 log = logging.getLogger("aiport-detector")
 
 
-def _onnx_providers(available):
+# Where Core ML runs the model (AIPORT_COREML_UNITS): auto leaves Core ML's choice (the Neural
+# Engine for these models); gpu keeps it off the Neural Engine, which Frigate's Core ML
+# detector shares on the same Mac (live 18:40 ANE power rose ~7x with every camera's pass time
+# while the CPU sat half idle).
+COREML_UNITS = {"ane": "CPUAndNeuralEngine", "gpu": "CPUAndGPU", "cpu": "CPUOnly", "all": "ALL"}
+
+
+def _onnx_providers(available, fp16_input=True):
     """onnxruntime providers (AIPORT_ORT_PROVIDER = auto/coreml/cpu): Core ML on
-    macOS (MLProgram on the Neural Engine, ~5-6x CPU on Apple silicon), else CPU."""
+    macOS (~5-6x CPU on Apple silicon), else CPU. The Core ML format follows the
+    model's input dtype; on an M2 each format was ~7x slower on the other model."""
     want = os.environ.get("AIPORT_ORT_PROVIDER", "auto").strip().lower()
     if want != "cpu" and "CoreMLExecutionProvider" in available:
-        # Default NeuralNetwork format falls back to CPU on the fp16 Ultralytics model.
-        return [("CoreMLExecutionProvider",
-                 {"ModelFormat": "MLProgram", "MLComputeUnits": "CPUAndNeuralEngine"}),
-                "CPUExecutionProvider"]
+        if fp16_input:
+            # Default NeuralNetwork format falls back to CPU on the fp16 Ultralytics
+            # YOLOv5 (95 ms vs 4 ms per frame).
+            opts = {"ModelFormat": "MLProgram", "MLComputeUnits": "CPUAndNeuralEngine"}
+        else:
+            # float32 graphs (Frigate's yolov9-s-320): NeuralNetwork 3 ms, MLProgram 22 ms.
+            opts = {}
+        units = COREML_UNITS.get(os.environ.get("AIPORT_COREML_UNITS", "auto").strip().lower())
+        if units:
+            opts = dict(opts, MLComputeUnits=units)
+        if units == "CPUAndGPU":
+            # On the GPU the NeuralNetwork format ran yolov9-s-320 at 22 ms, MLProgram at 7 ms (M2).
+            opts["ModelFormat"] = "MLProgram"
+        return [("CoreMLExecutionProvider", opts), "CPUExecutionProvider"]
     if want == "coreml":
         log.warning("AIPORT_ORT_PROVIDER=coreml but onnxruntime has no Core ML provider; using CPU")
     return ["CPUExecutionProvider"]
@@ -77,7 +96,14 @@ class CpuDetector(Detector):
                 "CPU Docker image (see docker/README.md)") from exc
         self._anchors = postprocess.load_anchors()
         so = _session_options(ort)
-        providers = _onnx_providers(ort.get_available_providers())
+        available = ort.get_available_providers()
+        fp16_input = True
+        if "CoreMLExecutionProvider" in available:
+            # Core ML's format depends on the input dtype; a CPU session reads it.
+            probe = ort.InferenceSession(self.model_path, so, providers=["CPUExecutionProvider"])
+            fp16_input = "float16" in probe.get_inputs()[0].type
+            del probe
+        providers = _onnx_providers(available, fp16_input)
         try:
             self._session = ort.InferenceSession(self.model_path, so, providers=providers)
         except Exception:
@@ -95,12 +121,8 @@ class CpuDetector(Detector):
         self.input_size = side if isinstance(side, int) else 640
         # Ultralytics release ONNX is fp16; honour the graph's input dtype.
         self._in_dtype = np.float16 if "float16" in inp.type else np.float32
-        outs = self._session.get_outputs()
-        shapes = [o.shape for o in outs]
-        if len(outs) == 1 and len(shapes[0]) == 3 and shapes[0][-1] == 5 + len(self._labels):
-            self._mode = "ultralytics"
-        else:
-            self._mode = "raw_heads"
+        self._mode = postprocess.layout([o.shape for o in self._session.get_outputs()],
+                                        len(self._labels))
         log.info("CPU detector initialized (%s, mode=%s, provider=%s, input=%d)",
                  self.model_path, self._mode, self.provider, self.input_size)
 
@@ -112,5 +134,7 @@ class CpuDetector(Detector):
         outputs = [np.asarray(o, dtype=np.float32) for o in outputs]
         if self._mode == "ultralytics":
             return postprocess.post_process_ultralytics(outputs[0])
+        if self._mode == "anchor_free":
+            return postprocess.post_process_anchor_free(outputs[0])
         size = (self.input_size, self.input_size)
         return postprocess.post_process_raw_heads(outputs, self._anchors, size)
