@@ -62,7 +62,7 @@ check_not_running() {
     local pids
     pids=$(pgrep -f "$REPO/piport/run_all.py" || true)
     if [ -n "$pids" ] && ! loaded; then
-        echo "pi-port is already running outside launchd (pid $(echo $pids | tr ' ' ','))." >&2
+        echo "pi-port is already running outside launchd (pid $(echo "$pids" | tr ' ' ','))." >&2
         echo "Stop it first (Ctrl-C in its terminal, or: sudo pkill -INT -f piport/run_all.py)." >&2
         exit 1
     fi

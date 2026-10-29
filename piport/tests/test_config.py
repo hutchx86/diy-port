@@ -286,10 +286,10 @@ class TestRedact(unittest.TestCase):
 class TestAdvertisedIp(unittest.TestCase):
     def test_reported_ip_can_differ_from_the_bound_one(self):
         from unittest import mock
-        with mock.patch.dict(os.environ, {"AIPORT_ADVERTISE_IP": "192.168.1.39"}):
-            self.assertEqual(config.advertised_ip("192.168.215.2"), "192.168.1.39")
+        with mock.patch.dict(os.environ, {"AIPORT_ADVERTISE_IP": "192.0.2.39"}):
+            self.assertEqual(config.advertised_ip("192.0.2.215"), "192.0.2.39")
         with mock.patch.dict(os.environ, {"AIPORT_ADVERTISE_IP": ""}):
-            self.assertEqual(config.advertised_ip("192.168.215.2"), "192.168.215.2")
+            self.assertEqual(config.advertised_ip("192.0.2.215"), "192.0.2.215")
 
 if __name__ == "__main__":
     unittest.main()

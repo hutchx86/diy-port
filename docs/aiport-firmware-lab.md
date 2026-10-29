@@ -48,7 +48,7 @@ the details.
    environment, not from `board.info`.
 3. **Avclient handshake headers match pi-port's:** `Camera-MAC` (no separators),
    `Camera-IP`, `Camera-Model: 0xa5f1`, `Camera-Firmware: 5.1.12`, `Device-ID`,
-   `Adopted`. Protect accepted a `Camera-IP` (`172.30.99.2`) different from the
+   `Adopted`. Protect accepted a `Camera-IP` (`192.0.2.2`) different from the
    address the connection came from.
 4. **The firmware doesn't contact the console on its own when unadopted.** It waits
    in `WAITING_FOR_CONTROLLER_ADDRESS` until Protect adopts it. pi-port's unsolicited

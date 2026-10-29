@@ -5,19 +5,19 @@
 # give one a LAN address, and UBNT discovery broadcasts don't reach it. So:
 #
 #   - Give the Mac a spare LAN address as an alias (not kept across reboots):
-#       sudo ifconfig en0 alias 192.168.1.39 255.255.255.255
+#       sudo ifconfig en0 alias 192.0.2.39 255.255.255.255
 #   - The container's :443 is published on that address at a high port (AIPORT_PUBLISH_PORT,
 #     18443): Docker on a Mac runs as the user, and macOS lets a user bind a port below 1024
 #     only on the wildcard address (tried: the publish on <address>:443 silently didn't happen,
 #     and a native pi-port's *:443 answered instead). pf sends the alias's :443 there:
-#       echo "rdr pass on en0 inet proto tcp from any to 192.168.1.39 port 443 -> 192.168.1.39 port 18443" \
+#       echo "rdr pass on en0 inet proto tcp from any to 192.0.2.39 port 443 -> 192.0.2.39 port 18443" \
 #           | sudo pfctl -a com.apple/piport-docker -f -
 #       sudo pfctl -E
 #     (also not kept across reboots; `sudo pfctl -a com.apple/piport-docker -F all` removes it).
 #   - It connects out to the console (AIPORT_CONSOLE) and shows up in Protect waiting to be
 #     adopted; AIPORT_ADVERTISE_IP is the address it reports, so Protect adopts it there.
 #
-#   AIPORT_ADVERTISE_IP=192.168.1.39 AIPORT_CONSOLE=192.168.1.1 \
+#   AIPORT_ADVERTISE_IP=192.0.2.39 AIPORT_CONSOLE=192.0.2.1 \
 #       docker compose -f compose.macos.yaml up -d --build
 #
 # Detection runs on the VM's CPU (no Core ML, no VideoToolbox, no Apple vehicle model). The
@@ -41,7 +41,7 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     environment:
-      AIPORT_CONSOLE: "${AIPORT_CONSOLE:?the Protect console's IP, e.g. 192.168.1.1}"
+      AIPORT_CONSOLE: "${AIPORT_CONSOLE:?the Protect console's IP, e.g. 192.0.2.1}"
       AIPORT_ADVERTISE_IP: "${AIPORT_ADVERTISE_IP:?the Mac's alias address}"
       AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-piport-docker}"
       AIPORT_DEBUG: "${AIPORT_DEBUG:-}"

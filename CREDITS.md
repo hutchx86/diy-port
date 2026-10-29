@@ -16,6 +16,17 @@ Third-party projects this repository references, derives from, or vendors. See
 - **[google-coral/test_data](https://github.com/google-coral/test_data)**
   (Apache-2.0) — `piport/models/coco_90_labels.txt` is its `coco_labels.txt`.
 
+## Adapted code
+
+- **[blakeblackshear/frigate](https://github.com/blakeblackshear/frigate)** (MIT) —
+  the motion gate (`piport/motion.py`, from `frigate/motion/improved_motion.py`), region
+  crops (`piport/regions.py`, from `frigate/util/object.py` and `frigate/util/image.py`),
+  the stationary-object classifier (`piport/stationary.py`, from
+  `frigate/track/stationary_classifier.py`) and Norfair matching
+  (`piport/norfair_match.py`, from `frigate/track/norfair_tracker.py`) are adapted from
+  Frigate. Each file carries `SPDX-License-Identifier: MIT AND AGPL-3.0-or-later` and the
+  full MIT notice inline, as Frigate's licence requires.
+
 ## Detection model
 
 - **[Ultralytics YOLOv5](https://github.com/ultralytics/yolov5)** (AGPL-3.0) —
@@ -39,6 +50,13 @@ Third-party projects this repository references, derives from, or vendors. See
   **websockets** (BSD-3-Clause), **paramiko** (LGPL-2.1) — Python runtime
   dependencies. **ffmpeg** (LGPL-2.1-or-later or GPL depending on the build) is
   the video pipeline.
+- **OpenCV** (Apache-2.0) — optional; the motion gate, stationary checks, face detection
+  and snapshot decoding.
+- **[fast-alpr](https://github.com/ankandrew/fast-alpr)** (MIT) — optional license-plate
+  detection and OCR; its `fast-plate-ocr` weights are downloaded at first use, not
+  stored here.
+- **[Norfair](https://github.com/tryolabs/norfair)** (BSD-3-Clause) — optional Kalman
+  tracker used when `AIPORT_TRACKER=norfair`.
 
 ## Non-free, not distributed
 

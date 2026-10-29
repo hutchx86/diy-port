@@ -151,6 +151,18 @@ pip install rknn-toolkit-lite2   # or ai-edge-litert (Coral) / onnxruntime (CPU)
 sudo python3 run_all.py --iface <your-iface> --fallback-host-port <console-ip>:7442
 ```
 
+Optional enrichment, each stage stays off until its imports resolve:
+
+```bash
+pip install opencv-python-headless                      # motion gate, stationary, faces
+pip install "fast-alpr[onnx]"                           # plates; [onnx] matters on rknn installs
+python3 ../scripts/fetch_models.py --face-models-only   # YuNet + SFace, sha-pinned
+```
+
+Without OpenCV the motion gate falls back to an average diff that misses small or distant
+movers. Plates and faces are enabled by `AIPORT_LPR=1` / `AIPORT_FACE=1` (the default
+`auto` turns each on once its models are present).
+
 Identity and the console endpoint default from `aiport.cfg` -- edit it (or pass `--config`)
 before the first run. Then adopt "AI Port" from the Protect UI like a normal camera, and pair a
 real camera to it from the camera's own settings.
@@ -387,7 +399,7 @@ parked track only takes a box overlapping its spot; and what Norfair leaves, par
 take by overlap and moving tracks by the nearest detection where their motion predicts them
 (the built-in rules below). Two people crossing kept their IDs where the built-in matcher
 swapped them. Install it without its dependency pins, which would downgrade numpy below 2
-(OpenCV 5 and onnxruntime need 2): `venv/bin/pip install scipy` then
+(OpenCV 5 and onnxruntime need 2): `venv/bin/pip install scipy rich` then
 `venv/bin/pip install --no-deps norfair==2.3.0 "filterpy>=1.4.5,<2"`.
 
 **Tracking.** Detections match tracks by box overlap; a moving track no box overlaps takes

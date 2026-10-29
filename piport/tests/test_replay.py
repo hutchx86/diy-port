@@ -128,6 +128,7 @@ class TestReplay(unittest.TestCase):
         self.assertEqual(len(summary["events"]), 1)
         self.assertGreater(summary["messages"], 2)
 
+    @unittest.skipUnless(_CV2, "OpenCV not installed: snapshots are decoded with cv2")
     def test_faces_read_from_full_size_frames_once_a_second(self):
         reads = []
         with mock.patch.object(av, "_enrich_detections",
