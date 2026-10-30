@@ -7,23 +7,23 @@ Third-party projects this repository references, derives from, or vendors. See
 
 - **[airockchip/rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo)**
   (Apache-2.0, tag `v2.3.2`) — copied from that project:
-  `piport/models/anchors_yolov5.txt`,
-  `piport/models/coco_80_labels_list.txt`, `rknn_convert/anchors_yolov5.txt`,
+  `diyport/models/anchors_yolov5.txt`,
+  `diyport/models/coco_80_labels_list.txt`, `rknn_convert/anchors_yolov5.txt`,
   `rknn_convert/coco_80_labels_list.txt` and `rknn_convert/coco_subset_20.txt`.
   `detectors/postprocess.py`'s YOLOv5 post-processing and `rknn_convert/convert.py` are adapted
   from its example. Apache-2.0 text: [`LICENSES/Apache-2.0.txt`](LICENSES/Apache-2.0.txt).
 
 - **[google-coral/test_data](https://github.com/google-coral/test_data)**
-  (Apache-2.0) — `piport/models/coco_90_labels.txt` is its `coco_labels.txt`.
+  (Apache-2.0) — `diyport/models/coco_90_labels.txt` is its `coco_labels.txt`.
 
 ## Adapted code
 
 - **[blakeblackshear/frigate](https://github.com/blakeblackshear/frigate)** (MIT) —
-  the motion gate (`piport/motion.py`, from `frigate/motion/improved_motion.py`), region
-  crops (`piport/regions.py`, from `frigate/util/object.py` and `frigate/util/image.py`),
-  the stationary-object classifier (`piport/stationary.py`, from
+  the motion gate (`diyport/motion.py`, from `frigate/motion/improved_motion.py`), region
+  crops (`diyport/regions.py`, from `frigate/util/object.py` and `frigate/util/image.py`),
+  the stationary-object classifier (`diyport/stationary.py`, from
   `frigate/track/stationary_classifier.py`) and Norfair matching
-  (`piport/norfair_match.py`, from `frigate/track/norfair_tracker.py`) are adapted from
+  (`diyport/norfair_match.py`, from `frigate/track/norfair_tracker.py`) are adapted from
   Frigate. Each file carries `SPDX-License-Identifier: MIT AND AGPL-3.0-or-later` and points
   at the MIT text in [`LICENSES/MIT-frigate.txt`](LICENSES/MIT-frigate.txt).
 
@@ -68,7 +68,7 @@ Third-party projects this repository references, derives from, or vendors. See
 
 - **[keshavdv/unifi-cam-proxy](https://github.com/keshavdv/unifi-cam-proxy)**
   (MIT) — the `extendedFlv` push format (`clock_sync.py`) that
-  `piport/onvif_push.py`'s `rewrite_flv()` follows, with corrected trailer
+  `diyport/onvif_push.py`'s `rewrite_flv()` follows, with corrected trailer
   units. MIT text: [`LICENSES/MIT-unifi-cam-proxy.txt`](LICENSES/MIT-unifi-cam-proxy.txt).
 
 - **[rjmotion/pyunifiwire](https://github.com/rjmotion/pyunifiwire)** — UBNT L2

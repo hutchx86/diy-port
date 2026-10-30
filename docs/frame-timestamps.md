@@ -1,16 +1,16 @@
-# Frame timestamps and video time sync: changes required in pi-port
+# Frame timestamps and video time sync: changes required in diy-port
 
 Status: proposed (2026-10-20). Changes 1 to 3 are not in the code: a trial of change 3
 (frame times from the stream's timestamps) was rolled back on 2026-10-23. Companion to
-[protect-timesync.md](protect-timesync.md), which covers putting pi-port's clock on
-Protect's time. That one isn't needed while the pi-port host is NTP-synced (see
+[protect-timesync.md](protect-timesync.md), which covers putting diy-port's clock on
+Protect's time. That one isn't needed while the diy-port host is NTP-synced (see
 "Order" below). Change 3 here removes per-frame jitter. Change 4 (RTCP) was tested on a
 native and an emulated camera and can't replace the hard-coded `AIPORT_BOX_DELAY_MS`
 through wall time; a `clockStream` lead there is untested.
 
 Protect places smart-detect boxes in playback using the times on each event:
 `clockWall`, `clockBestWall`, `clockStream` and `clockMonotonic`. This page sets out how
-the real AI Port arrives at those times, what pi-port does now, and what needs to change
+the real AI Port arrives at those times, what diy-port does now, and what needs to change
 for them to be accurate.
 
 ## How the real AI Port does it
@@ -36,7 +36,7 @@ and in real-camera WebSocket captures:
 - **Not confirmed:** the time fields in an actual `EventSmartDetect` from the firmware.
   The lab can't produce real detections, so none was ever sent.
 
-## What pi-port does now (`piport/avclient.py`)
+## What diy-port does now (`diyport/avclient.py`)
 
 Already matches the firmware:
 
@@ -77,7 +77,7 @@ at connect and every 600 s, with the measured offset applied in `_now_ms()` and
 host and the console, the two clocks are normally within a few to tens of ms on a LAN:
 less than one frame at `DETECT_FPS` (100 ms at 10 fps) and less than the decode jitter
 in the arrival stamp. So skip this while the host runs NTP. Not measured directly: the
-lab ran on the Mac's NTP time and the captures measured real cameras, not the pi-port
+lab ran on the Mac's NTP time and the captures measured real cameras, not the diy-port
 host.
 
 ### 2. Tracker durations on monotonic time (only with 1)
@@ -179,14 +179,14 @@ two connections): `clockMonotonic` is the camera's uptime in ms (it tracks the h
 reconnect: the same monotonic clock, offset by when the video timeline started.
 `clockStreamRate` is 1000 (ms). The emulated cameras in the same captures (unifi-cam-proxy)
 send seconds while claiming rate 1000, keep `clockStream` = `clockMonotonic`, and their
-`clockWall` runs 1.2 to 1.4 s behind arrival. pi-port sends ms since the RTSP pull started
+`clockWall` runs 1.2 to 1.4 s behind arrival. diy-port sends ms since the RTSP pull started
 for both.
 
 **Lead, not tested:** the NTP field gives the camera's stream clock with RTP's wraps
 restored: days long for the native camera, so probably counted since it started
 streaming. Native cameras send a `clockStream` of the same kind in `EventSmartDetect`
 (69,938,862 ms = 19.4 h in one capture). If `clockStream` is that same stream clock,
-pi-port could send each analysed frame's stream time, taken from the RTP timestamp
+diy-port could send each analysed frame's stream time, taken from the RTP timestamp
 unwrapped with the sender report, as `clockStream`, and Protect, which joins tracks to the
 media timeline with it, might place boxes exactly without any delay. To check: compare
 a native camera's RTSP stream clock (from the probe) with its uptime as Protect shows it.
@@ -211,7 +211,7 @@ alongside ffmpeg.
    variation on top), so the box delay can be calibrated tighter.
 3. Changes 1 and 2 only if the host can't run NTP or is seen to drift from the console.
 
-## Tests (`piport/tests/test_avclient.py`)
+## Tests (`diyport/tests/test_avclient.py`)
 
 - `showinfo` parsing: lines into `seq -> pts_ms`, including the counting offset and a
   line that arrives after its frame.

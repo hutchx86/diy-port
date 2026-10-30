@@ -3,7 +3,7 @@
 #
 # Single-instance AI Port emulator, host networking; the Komodo Stack file.
 
-name: piport
+name: diyport
 
 services:
   aiport:
@@ -12,8 +12,8 @@ services:
       dockerfile: docker/Dockerfile
       args:
         ACCEL: cpu
-    image: piport-cpu
-    container_name: piport-cpu
+    image: diyport-cpu
+    container_name: diyport-cpu
     # L2 discovery (:10001) and :443 must be on the real LAN; the default bridge NATs both away.
     network_mode: host
     cap_add:
@@ -24,7 +24,7 @@ services:
       AIPORT_CONSOLE_PORT: "${AIPORT_CONSOLE_PORT:-7442}"
       AIPORT_MAC: "${AIPORT_MAC:-}"
       AIPORT_DEVICE_ID: "${AIPORT_DEVICE_ID:-}"
-      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-piport}"
+      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-diyport}"
       AIPORT_NAME: "${AIPORT_NAME:-AI Port}"
       AIPORT_IFACE: "${AIPORT_IFACE:-}"
       AIPORT_DEBUG: "${AIPORT_DEBUG:-}"
@@ -32,23 +32,23 @@ services:
     command: ["--state-dir", "/data"]
     shm_size: 256m   # per-camera snapshot JPEGs live in /dev/shm
     volumes:
-      - piport-data:/data
+      - diyport-data:/data
     # volumes:
-    #   - ./piport/aiport.cfg:/app/piport/aiport.cfg:ro   # full identity/network surface
+    #   - ./diyport/aiport.cfg:/app/diyport/aiport.cfg:ro   # full identity/network surface
 
   # Optional status page on :8090 (CPU/mem; no auth; GPU/NPU panels are RK3588-only).
   webui:
-    image: piport-cpu
+    image: diyport-cpu
     build:
       context: .
       dockerfile: docker/Dockerfile
       args:
         ACCEL: cpu
-    container_name: piport-webui
+    container_name: diyport-webui
     network_mode: host
     restart: unless-stopped
-    entrypoint: ["python3", "piport/sysinfo_server.py"]
+    entrypoint: ["python3", "diyport/sysinfo_server.py"]
     command: ["--bind-ip", "0.0.0.0", "--port", "8090"]
 
 volumes:
-  piport-data:
+  diyport-data:

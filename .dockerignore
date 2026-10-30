@@ -4,7 +4,7 @@
 rknn_convert/
 docs/
 # Superseded duplicated CPU tree (only present if checked out from the old branch)
-piport/x86/
+diyport/x86/
 **/__pycache__
 **/*.pyc
 **/*.pyo
@@ -12,7 +12,7 @@ piport/x86/
 **/instances/
 # Runtime state must never enter the image (a stale cert here made every
 # container fail load_cert_chain). Use **/ so patterns match subdirectories --
-# a bare "*.key" only matches the context root, not piport/server.key.
+# a bare "*.key" only matches the context root, not diyport/server.key.
 *.log
 **/*.log
 **/.env

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The Pi-Port project
-"""Fetch the model assets a detector backend needs (see piport/detectors/).
+# Copyright (C) 2026 The DIY-Port project
+"""Fetch the model assets a detector backend needs (see diyport/detectors/).
 
   rknn     the open Rockchip YOLOv5s model (ONNX + anchors + COCO labels +
            calibration subset) for the .rknn conversion workspace
@@ -37,7 +37,7 @@ FACE_MODELS = {
     f"{OPENCV_ZOO}/face_recognition_sface/face_recognition_sface_2021dec.onnx":
         "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
 }
-UA = {"User-Agent": "piport-fetch-models"}
+UA = {"User-Agent": "diyport-fetch-models"}
 
 # Single-file models per backend: dest name -> (url, sha256). Pinned digests;
 # a mismatch deletes the download and aborts.
@@ -59,7 +59,7 @@ BACKEND_MODELS = {
 
 # target dirs, keyed by short name
 DIRS = {
-    "models": os.path.join(ROOT, "piport", "models"),
+    "models": os.path.join(ROOT, "diyport", "models"),
     "rknn_convert": os.path.join(ROOT, "rknn_convert"),
 }
 

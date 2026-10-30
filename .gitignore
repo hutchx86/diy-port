@@ -8,8 +8,8 @@ server.crt
 server.key
 
 # Runtime scratch / generated device state
-/piport/instances/
-/piport/.venv/
+/diyport/instances/
+/diyport/.venv/
 adopt_state.json
 adopt_state.json.tmp
 fw_version.json
@@ -40,4 +40,4 @@ __pycache__/
 docker/.env
 
 # Apple vehicle-attribute helper, built on first use
-/piport/apple/build/
+/diyport/apple/build/

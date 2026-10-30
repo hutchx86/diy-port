@@ -14,7 +14,7 @@
 # Coral: /dev/bus/usb is bind-mounted (not passed as one --device) because the
 # USB Coral re-enumerates with a new device number once libedgetpu loads its
 # firmware; the cgroup rule allows the USB character devices (major 189).
-name: piport
+name: diyport
 
 services:
   aiport:
@@ -23,14 +23,14 @@ services:
       dockerfile: docker/Dockerfile
       args:
         ACCEL: ${AIPORT_ACCEL:-edgetpu}
-    image: piport:${AIPORT_ACCEL:-edgetpu}
-    container_name: piport-aiport
+    image: diyport:${AIPORT_ACCEL:-edgetpu}
+    container_name: diyport-aiport
     restart: unless-stopped
     init: true  # forwards docker stop to run_all.py and its children
     entrypoint: ["python3", "/app/docker/entrypoint.py"]
     environment:
       AIPORT_CONSOLE: ${AIPORT_CONSOLE:?set AIPORT_CONSOLE to the Protect console IP}
-      AIPORT_HOSTNAME: ${AIPORT_HOSTNAME:-piport}
+      AIPORT_HOSTNAME: ${AIPORT_HOSTNAME:-diyport}
       AIPORT_DEBUG: ${AIPORT_DEBUG:-false}
     volumes:
       - aiport-data:/data

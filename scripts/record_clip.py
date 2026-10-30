@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The Pi-Port project
-"""Record a paired camera's stream for piport/replay.py.
+# Copyright (C) 2026 The DIY-Port project
+"""Record a paired camera's stream for diyport/replay.py.
 
     scripts/record_clip.py 02000000000A 60 parked-car
     scripts/record_clip.py rtsp://192.0.2.1:7447/xyz 30 test --device 02000000000C
 
-Copies the video as it comes from Protect (no re-encode) to ~/piport-clips/NAME.mp4 and
-writes NAME.json beside it with what the replay needs from the running pi-port's log: the
+Copies the video as it comes from Protect (no re-encode) to ~/diyport-clips/NAME.mp4 and
+writes NAME.json beside it with what the replay needs from the running diy-port's log: the
 stream size, the camera's latest ChangeSmartDetectSettings (zones, exclusion zones, lines,
 eventStartMSec) and ChangeSmartMotionSettings, and the recording's start time. Given a
-deviceID, the RTSP URL is the one pi-port is pulling now (from the same log). Clips stay out
+deviceID, the RTSP URL is the one diy-port is pulling now (from the same log). Clips stay out
 of git: they show the property.
 """
 import argparse
@@ -22,8 +22,8 @@ import subprocess
 import sys
 from datetime import datetime
 
-LOG = os.path.expanduser(os.environ.get("PIPORT_LOG", "~/piport.log"))
-OUT_DIR = os.path.expanduser(os.environ.get("PIPORT_CLIPS", "~/piport-clips"))
+LOG = os.path.expanduser(os.environ.get("DIYPORT_LOG", "~/diyport.log"))
+OUT_DIR = os.path.expanduser(os.environ.get("DIYPORT_CLIPS", "~/diyport-clips"))
 
 _PULL = re.compile(r"starting merged RTSP pull for deviceID=(\w+): (rtsp://\S+)")
 _RECEIVED = re.compile(r"<<< received functionName='(\w+)' .*? payload=(\{.*\})\s*$")
@@ -82,7 +82,7 @@ def main(argv=None):
             print("can't read %s: %s" % (args.log, e), file=sys.stderr)
     url = args.camera if args.camera.startswith("rtsp://") else info.get("url")
     if not url:
-        sys.exit("no RTSP URL for %s in %s (is pi-port pulling it?)" % (args.camera, args.log))
+        sys.exit("no RTSP URL for %s in %s (is diy-port pulling it?)" % (args.camera, args.log))
 
     os.makedirs(args.out, exist_ok=True)
     clip = os.path.join(args.out, args.name + ".mp4")

@@ -1,14 +1,14 @@
-# Protect time sync (`ubnt_avclient_timeSync`): change required in pi-port
+# Protect time sync (`ubnt_avclient_timeSync`): change required in diy-port
 
-Status: proposed (2026-10-20), not implemented, and not needed while the pi-port host
+Status: proposed (2026-10-20), not implemented, and not needed while the diy-port host
 is NTP-synced: two NTP clocks on a LAN are normally within a few to tens of ms, less
 than one detection frame. Do this if the host can't run NTP or drifts from the console.
 For what does improve accuracy, see [frame-timestamps.md](frame-timestamps.md) (change 3; change 4 was tested and doesn't help).
 
-pi-port stamps every event with its host's clock. Real UniFi cameras and the AI Port
+diy-port stamps every event with its host's clock. Real UniFi cameras and the AI Port
 sync their clock with Protect over the avclient WebSocket before saying hello, and again
 every 10 minutes. Protect places smart-detect boxes in playback by `clockWall`, so if the
-pi-port host's clock drifts from the console's, every box moves by the difference.
+diy-port host's clock drifts from the console's, every box moves by the difference.
 `AIPORT_BOX_DELAY_MS` corrects a fixed decode or relay delay, not clock drift.
 
 ## What real devices do
@@ -59,17 +59,17 @@ Protect to device (the reply):
   rounds, then stamped its hello `2025-12-24T02:36:43`: it corrects once the batch
   is complete. Another connection started 20 s behind.
 - Protect doesn't require the sync. Camera emulators that skip it (unifi-cam-proxy,
-  pi-port) are adopted and their events accepted. They're just not aligned to Protect's
+  diy-port) are adopted and their events accepted. They're just not aligned to Protect's
   clock.
 
 ### The firmware's own clock use
 
 On the AI Port, `ubnt_avclient` sets the system clock from this exchange (and stops
 `systemd-timesyncd` after adoption). Frames are stamped with `CLOCK_MONOTONIC` at decode
-and converted to wall time on that synced clock. pi-port shouldn't set the host's clock.
+and converted to wall time on that synced clock. diy-port shouldn't set the host's clock.
 It should keep the measured offset and apply it to the wall times it sends.
 
-## What pi-port does now (`piport/avclient.py`)
+## What diy-port does now (`diyport/avclient.py`)
 
 - `run()` (around line 2560) connects and sends `ubnt_avclient_hello` straight away;
   there's no time sync.
@@ -93,7 +93,7 @@ It should keep the measured offset and apply it to the wall times it sends.
 
 ### 1. Clock offset state
 
-Add a module-level offset, in ms, that is added to every wall-clock time pi-port sends:
+Add a module-level offset, in ms, that is added to every wall-clock time diy-port sends:
 
 ```python
 _protect_offset_ms = 0       # Protect's clock minus ours, from the last timeSync batch
@@ -174,7 +174,7 @@ The receive loop blocks on `for raw in ws`, so the periodic batch needs its own 
 - **ucp4 (`ucp4_client.py`):** stamps `int(time.time() * 1000)` on its own messages.
   It isn't part of event placement. Leave it unless Protect turns out to compare it.
 
-### 6. Tests (`piport/tests/test_avclient.py`)
+### 6. Tests (`diyport/tests/test_avclient.py`)
 
 - Offset maths: fixed `T0`, `T3`, `t1`, `t2`, including a reply with a large offset and
   one with a high RTT; the smallest-RTT round wins.
@@ -199,6 +199,6 @@ Protect's clock.
 
 - Log each batch's offset and smallest RTT at INFO. On a LAN the RTT should be a few ms
   to a few tens of ms.
-- Skew the pi-port host's clock on purpose (for example 2 s ahead in a test VM). After
+- Skew the diy-port host's clock on purpose (for example 2 s ahead in a test VM). After
   the first batch, events' `clockWall` should match Protect's time to within the RTT,
   and boxes should line up in playback with `AIPORT_BOX_DELAY_MS` unchanged.

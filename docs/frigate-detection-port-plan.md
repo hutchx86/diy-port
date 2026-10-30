@@ -1,16 +1,16 @@
-# Plan: porting Frigate's detection pipeline into pi-port
+# Plan: porting Frigate's detection pipeline into diy-port
 
 Status: done. Proposed 2026-10-17; steps 0 to 6 are in the code (Norfair is optional,
 `AIPORT_TRACKER`). Kept as the record of what was ported from Frigate and why.
 Source: Frigate at `~/Code/frigate` (commit `add310d63`, MIT licence). Code copied or closely
-adapted from it keeps Frigate's copyright and MIT notice in the file header; pi-port stays
+adapted from it keeps Frigate's copyright and MIT notice in the file header; diy-port stays
 AGPL-3.0.
 
 ## Why
 
-What pi-port got wrong on 2026-10-16/17, and the Frigate piece that avoids it:
+What diy-port got wrong on 2026-10-16/17, and the Frigate piece that avoids it:
 
-| Seen live | pi-port today | Frigate |
+| Seen live | diy-port today | Frigate |
 | --- | --- | --- |
 | Person walking through Camera C's background never detected (13:54:03) | whole-frame mean-diff gate; person ~0.5% of the frame | motion **boxes** from a background model |
 | Tree stump "animal" 3x, Camera A's pot "animal" | open at 0.5; my must-move and keep-at-0.3 rules | true positive only when the **median of the last 10 scores >= 0.7** |
@@ -27,14 +27,14 @@ decided after step 5.
 
 ### Step 0. Replay harness (prerequisite)
 
-Done: `piport/replay.py`, `scripts/record_clip.py`, `piport/tests/test_replay.py`
-(see "Replaying clips" in `piport/README.md`). Golden clips still to record.
+Done: `diyport/replay.py`, `scripts/record_clip.py`, `diyport/tests/test_replay.py`
+(see "Replaying clips" in `diyport/README.md`). Golden clips still to record.
 
 Every change so far was judged on live events after a restart. Instead:
 
 - `scripts/record_clip.sh <camera-uri> <seconds> <name>`: `ffmpeg -rtsp_transport tcp -i ... -c copy`
-  into `~/piport-clips/<name>.mp4` (outside git; the clips show the property).
-- `piport/replay.py <clip> [--camera-dims WxH] [--zones json]`: runs the same ffmpeg filter
+  into `~/diyport-clips/<name>.mp4` (outside git; the clips show the property).
+- `diyport/replay.py <clip> [--camera-dims WxH] [--zones json]`: runs the same ffmpeg filter
   graph on the file, feeds frames through `_motion_tick` with a fake websocket and a fake
   clock driven by frame timestamps, and prints the timeline of enter/moving/leave per tracker,
   plus a summary (events, objects, false events).
@@ -88,10 +88,10 @@ Size: small. Net code removed.
 
 ### Step 3. Frigate's motion detector (item 2)
 
-Done: `piport/motion.py`; the gate is on everywhere again. Also fixed on the way: a tick the gate
+Done: `diyport/motion.py`; the gate is on everywhere again. Also fixed on the way: a tick the gate
 skipped took the wall clock instead of its frame's time.
 
-Port `frigate/motion/improved_motion.py` (`ImprovedMotionDetector`) as `piport/motion.py`:
+Port `frigate/motion/improved_motion.py` (`ImprovedMotionDetector`) as `diyport/motion.py`:
 
 - 100 px high grayscale, contrast stretched to the 4th-96th percentile averaged over 50 frames,
   Gaussian blur (cv2 instead of scipy, to avoid a dependency), background as a running average
@@ -111,7 +111,7 @@ Frigate's, which are well exercised.
 
 ### Step 4. Pixel-based "did the parked object move" (item 4)
 
-Done: `piport/stationary.py`, used by `_parked_spot_unchanged` in `avclient.py`.
+Done: `diyport/stationary.py`, used by `_parked_spot_unchanged` in `avclient.py`.
 
 Port `frigate/track/stationary_classifier.py` (`StationaryMotionClassifier`):
 
@@ -187,7 +187,7 @@ Port the matching in `frigate/track/norfair_tracker.py`:
 - One `norfair.Tracker` per object type, with Frigate's distance thresholds (2-3.75, its
   `frigate_distance` on box corners and centre), `initialization_delay` = fps/2,
   `hit_counter_max` = 5 s of frames, and colour-histogram re-ID for people.
-- pi-port's track dict (event, parked state, best frame, attributes, line crossings) stays;
+- diy-port's track dict (event, parked state, best frame, attributes, line crossings) stays;
   Norfair only decides which detection belongs to which tracker ID.
 - Replaces: IoU matching, nearest-neighbour fallback, resume-recent, the miss tolerance.
 - New dependency: `norfair` (BSD-3-Clause) plus its `filterpy` dependency.

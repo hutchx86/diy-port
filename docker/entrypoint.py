@@ -21,7 +21,7 @@ import random
 import sys
 import uuid
 
-APP = "/app/piport"
+APP = "/app/diyport"
 DATA = os.environ.get("AIPORT_DATA", "/data")
 CFG = os.path.join(DATA, "aiport.cfg")
 IDENTITY = os.path.join(DATA, "identity.json")

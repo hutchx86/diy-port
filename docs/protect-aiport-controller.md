@@ -6,7 +6,7 @@ from the extracted service bundle in `~/Code/up/app/modules`
 modules. The device side of the same protocol is in
 [aiport-interface.md](aiport-interface.md).
 
-At the end is a list of places where pi-port does not match what this code
+At the end is a list of places where diy-port does not match what this code
 expects.
 
 ## Where the code lives
@@ -228,56 +228,56 @@ On 2026-10-16 this returned v5.1.12 (~878 MiB `.bin`, md5 and sha256 included) o
 releases back to v4.73.8. The `UpdateFirmwareRequest` URI a device receives points
 at the console's own `/internal/update/...` copy of the same file.
 
-## Gaps in pi-port
+## Gaps in diy-port
 
 Ranked by impact. Each was checked against both codebases.
 
 1. **The LPR-flag message wipes zones and lines.** On every AI Port connect, step 7
-   above sends `ChangeSmartDetectSettings {isLprCamera, deviceID}`. pi-port's handler
+   above sends `ChangeSmartDetectSettings {isLprCamera, deviceID}`. diy-port's handler
    (`avclient.py` `handle_function`) replaces `excludeZones`, `zones` and `lines` with
    whatever the payload has, which is nothing. So after a reconnect, exclude zones
    stop filtering, detect zones stop restricting, and Line Crossing stops, until
    Protect happens to resend the full settings. Fix: only update keys that are present.
 
 2. **No motion events for paired cameras.** Protect drops a paired camera's own
-   `EventSmartMotion`/`EventAnalytics`, and pi-port never sends them. Motion-only
-   events and motion-triggered recording for paired cameras likely stop. pi-port needs
+   `EventSmartMotion`/`EventAnalytics`, and diy-port never sends them. Motion-only
+   events and motion-triggered recording for paired cameras likely stop. diy-port needs
    to send `EventSmartMotion` (`eventType: "motion"`, `edgeType: start|stop`, or
    `eventType: "pulse"`) with `deviceID`. The exact payload fields still need to be
    read from the `events.cameras.motionStart` handler.
 
 3. **Camera audio detections are lost.** The same rule drops the camera's own
-   `EventSmartAudio`, and pi-port's feature flags have no audio types, so the camera's
+   `EventSmartAudio`, and diy-port's feature flags have no audio types, so the camera's
    `smartDetectAudioTypes` becomes `[]` (smoke/CO alarm, glass break etc.).
 
-4. **Snapshots can come from the wrong camera.** pi-port advertises `supportUcp4`, so
+4. **Snapshots can come from the wrong camera.** diy-port advertises `supportUcp4`, so
    Protect asks for paired-camera snapshots with `ucp4 getSnapshot {quality}`, which has
-   no camera id. pi-port returns the newest frame from any camera. With two or more
+   no camera id. diy-port returns the newest frame from any camera. With two or more
    paired cameras, previews can show the wrong camera. Not advertising TLV `0x3F`
-   would make Protect use avclient `GetRequest` with `deviceId`, which pi-port already
+   would make Protect use avclient `GetRequest` with `deviceId`, which diy-port already
    resolves per camera; that flag only gates update-before-adoption for Access
    devices, but it also picks the adopt path (`/api/adopt` vs `/api/1.2/manage`), so
    re-test adoption.
 
 5. **Third-party (ONVIF) cameras pair but get no detection and likely no video.**
-   pi-port replies `started` to `OnvifStreamControl` without pulling `streamUrl`.
+   diy-port replies `started` to `OnvifStreamControl` without pulling `streamUrl`.
    Protect has stopped ingesting that camera directly and expects the AI Port to push
    its video, so the camera probably stops recording as well as getting no detections.
-   Until it's supported, pi-port should reply with a failure
+   Until it's supported, diy-port should reply with a failure
    (`description: "mixed_device_type"`) so Protect unpairs the camera.
 
-6. ~~**Capacity reporting doesn't match Protect's estimate.**~~ Fixed: pi-port now
+6. ~~**Capacity reporting doesn't match Protect's estimate.**~~ Fixed: diy-port now
    reports the real device's per-stream points (measured from its firmware, equal to
    Protect's estimate × 10), lists active streams in `GetStreamList`, and handles
    `ResetAIPortStreams` and `GetUiStreamPoints`.
 
 Smaller notes:
 
-- `EventAudioStatus` is sent (pi-port reports firmware 5.1.x, above the 4.73.8 gate)
-  and falls through to pi-port's generic `{}` ack.
-- `ChangeDeviceSettings` on connect carries only `{timezone}`; pi-port's handler
+- `EventAudioStatus` is sent (diy-port reports firmware 5.1.x, above the 4.73.8 gate)
+  and falls through to diy-port's generic `{}` ack.
+- `ChangeDeviceSettings` on connect carries only `{timezone}`; diy-port's handler
   correctly ignores the missing `name`.
-- `deviceID` on pi-port's events is the MAC Protect sent, so the upper-case
+- `deviceID` on diy-port's events is the MAC Protect sent, so the upper-case
   match works.
 - `discovery.py` says TLV `0x3F` "gates needUpdateBeforeAdoption"; in 7.1.75 that
   gate only applies to Access devices.

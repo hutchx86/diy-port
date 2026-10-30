@@ -3,13 +3,13 @@
 Status as of 2026-10-18 (paused). Ubiquiti's own AI Port firmware (v5.1.12, the image
 in [protect-aiport-controller.md](protect-aiport-controller.md#firmware-source)) runs in
 a Docker container on a Mac. The console adopted it as an AI Port, and it reached the
-point of pulling camera streams. The aim is to check pi-port's emulation against the
+point of pulling camera streams. The aim is to check diy-port's emulation against the
 real thing; see [aiport-interface.md](aiport-interface.md).
 
 The lab is its own repo, **aiport-fw** (`~/Code/aiport-fw`). Its README has the lab's
 status, open issues, next steps and how to resume; `docker/README.md` there has the
 details. Like [aiport-firmware-notes.md](aiport-firmware-notes.md), this page holds
-findings for pi-port only. No firmware files, extracts or Ubiquiti code go in either repo.
+findings for diy-port only. No firmware files, extracts or Ubiquiti code go in either repo.
 
 ## How it runs (summary)
 
@@ -30,28 +30,28 @@ the details.
 | Camera assignment | Protect assigned two cameras within 20 s of adoption |
 | Per-camera ingest | Pulls RTSP from the console, decodes in software, writes frames into the firmware's YUV shared memory, reports "streaming status 1" and starts the dependent per-camera modules |
 
-## Findings that matter for pi-port
+## Findings that matter for diy-port
 
 1. **Discovery reply from the real firmware** (once it knows its board):
-   - platform TLV `0x0C` is **`UP AI Port`**; pi-port sends `UVC AI Port` or the
+   - platform TLV `0x0C` is **`UP AI Port`**; diy-port sends `UVC AI Port` or the
      `discovery_platform` override;
    - sysid `0x10` is `0xa5f1` (little-endian), name `0x0B` is `UVC AI Port`;
-   - there's **no `0x3F` (ucp4) TLV**, which pi-port sends;
-   - default-credentials `0x2C` is **`0x02`**; pi-port sends `0x03`;
+   - there's **no `0x3F` (ucp4) TLV**, which diy-port sends;
+   - default-credentials `0x2C` is **`0x02`**; diy-port sends `0x03`;
    - TLVs in order: `0x02, 0x01, 0x0A, 0x0B, 0x0C, 0x17, 0x03, 0x10, 0x20, 0x2C`;
    - it only answers probes sent to the multicast group, not unicast ones.
 
-   Protect listed and adopted it with these values. So pi-port's platform string and
+   Protect listed and adopted it with these values. So diy-port's platform string and
    `0x3F` may not be required; worth testing before changing anything.
 2. **Without a known sysid, the reply says `UVC Unknown` with sysid `0x0001`, and
    Protect ignores the device.** The firmware reads the sysid from the U-Boot
    environment, not from `board.info`.
-3. **Avclient handshake headers match pi-port's:** `Camera-MAC` (no separators),
+3. **Avclient handshake headers match diy-port's:** `Camera-MAC` (no separators),
    `Camera-IP`, `Camera-Model: 0xa5f1`, `Camera-Firmware: 5.1.12`, `Device-ID`,
    `Adopted`. Protect accepted a `Camera-IP` (`192.0.2.2`) different from the
    address the connection came from.
 4. **The firmware doesn't contact the console on its own when unadopted.** It waits
-   in `WAITING_FOR_CONTROLLER_ADDRESS` until Protect adopts it. pi-port's unsolicited
+   in `WAITING_FOR_CONTROLLER_ADDRESS` until Protect adopts it. diy-port's unsolicited
    pre-adopt connection isn't something the real device does here; discovery alone was
    enough for Protect to list it.
 5. **After adoption, Protect:** sends the face DB
@@ -61,7 +61,7 @@ the details.
 6. **Per-camera ingest (`ubnt_av_aiport@<camera MAC>`):**
    - It receives the stream URI, and the firmware saves it per camera with `lq_fps:
      24`, `yuv_fps: 10` and `raw_data: true`.
-   - It analyses 10 fps of YUV per camera, matching pi-port's default detection rate
+   - It analyses 10 fps of YUV per camera, matching diy-port's default detection rate
      on macOS.
    - It scales to 2560x1440 / 1280x720 / 640x360.
    - Once streaming, it starts the per-camera `ubnt_streamer@`,
@@ -77,17 +77,17 @@ detection events. The ingest's snapshot stage also still fails, so the per-camer
 pipeline restarts every few seconds and takes `smart_detect` down with it. The
 lab's open issues are tracked in aiport-fw's README.
 
-## Next steps for pi-port
+## Next steps for diy-port
 
-1. **Compare discovery replies.** Try pi-port's discovery with the real firmware's
+1. **Compare discovery replies.** Try diy-port's discovery with the real firmware's
    values (`UP AI Port`, no `0x3F`, `0x2C = 0x02`) and see whether Protect still lists
    and adopts it. That settles findings 1 and 4.
 2. **Revisit the pre-adopt avclient connection.** The real firmware doesn't make one
-   (finding 4). Check whether pi-port still needs it, now that discovery alone got the
+   (finding 4). Check whether diy-port still needs it, now that discovery alone got the
    real device listed.
 3. **Use the lab's message captures** once aiport-fw logs the firmware's IPC (its next
    step 2): compare the hello, `EventAIPortStatus` and `EventFeatureFlagsUpdated` with
    [aiport-interface.md](aiport-interface.md).
 4. **Per-camera motion** (gap 2 in
-   [protect-aiport-controller.md](protect-aiport-controller.md#gaps-in-pi-port)), once
+   [protect-aiport-controller.md](protect-aiport-controller.md#gaps-in-diy-port)), once
    the lab gets `ubnt_smart_motion` running and shows its `EventSmartMotion` shape.

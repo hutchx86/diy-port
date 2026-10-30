@@ -1,17 +1,17 @@
 # Matching faces against Protect's face DB: plan
 
-Status: implemented 2026-10-20 (`piport/facedb.py`); not yet seen naming anyone live.
+Status: implemented 2026-10-20 (`diyport/facedb.py`); not yet seen naming anyone live.
 The threshold ended up at 0.45 (`AIPORT_FACE_DB_THRESH`), not SFace's 0.363: on a day Ian
 wasn't there, 7 of 322 distinct faces scored 0.363 to 0.429 against him.
 
-pi-port finds faces and sends their SFace embedding (`faceEmbed`), but never names anyone:
+diy-port finds faces and sends their SFace embedding (`faceEmbed`), but never names anyone:
 it only matches against a local photo gallery (`<state-dir>/faces/<Name>/`), which is
-empty. Protect sends its own known-faces DB (`UpdateFaceDBRequest`), which pi-port
+empty. Protect sends its own known-faces DB (`UpdateFaceDBRequest`), which diy-port
 downloads and ignores.
 
 ## What we know
 
-### The DB holds pi-port's own embeddings
+### The DB holds diy-port's own embeddings
 
 `known.db` is a tar of `known/uiface.json` and `known/uiface.db`. On 2026-10-20 it held one
 subject, "Ian Vincent" (subject 5, instances 0 and 1):
@@ -24,9 +24,9 @@ subject, "Ian Vincent" (subject 5, instances 0 and 1):
  "IgnoredSubjectIds": [], "IngnoredInstanceIds": []}
 ```
 
-One vector in `uiface.db` is exactly (cosine 1.000) the `faceEmbed` pi-port sent at
+One vector in `uiface.db` is exactly (cosine 1.000) the `faceEmbed` diy-port sent at
 2026-10-18 16:54:38, a minute before Ian was named in Protect. Protect enrols the embedding
-the device sent, so the DB is in SFace's space and pi-port can match against it directly.
+the device sent, so the DB is in SFace's space and diy-port can match against it directly.
 Faces named from another source (Protect's own cameras) don't appear: the user has named
 three people in Protect, and only Ian, named on an AI Port face, is in the DB.
 
@@ -45,7 +45,7 @@ Annoy's `load(path, prefault, error)`; decompiled with Ghidra, `ubnt_smart_detec
   The firmware logs `Successfully load database with {} subjects, {} instances and {}
   embeddings.`
 - Every embedding found in three real DBs (2026-10-18 and 2026-10-21) was an exact copy of one
-  pi-port sent, though not always from the event the user named: naming a face group on
+  diy-port sent, though not always from the event the user named: naming a face group on
   Protect's faces page enrols that group's older faces (an Oct 17 and an Oct 18 face).
 
 ### How the AI Port firmware matches (`ubnt_smart_detect`, v5.1.12 strings)
@@ -76,7 +76,7 @@ AI Port match, so the value types are a guess. Most likely `matchedId` is the su
 
 ## Change
 
-### 1. `piport/facedb.py`
+### 1. `diyport/facedb.py`
 
 - `load(path)`: open the tar, read `uiface.json`, and read each instance's embeddings from
   `uiface.db` (item *i* at byte *i* x 2064 + 16, embeddings at floats 0, 132 and 264, unused
@@ -119,7 +119,7 @@ On the face descriptor, and on its person (via `associatedFaceTrackerID`), send
 
 1. In Protect, name the other two people on faces that came from the AI Port cameras, so
    the DB has three subjects. Check the downloaded DB: three subjects, each instance's
-   embeddings equal to a `faceEmbed` pi-port sent. (The layout is now confirmed from the
+   embeddings equal to a `faceEmbed` diy-port sent. (The layout is now confirmed from the
    firmware; see above.)
 2. One of them walks past a camera. The log shows the match and its similarity; Protect
    shows the name on the event. If Protect ignores `matchedId`/`matchedName`, try
@@ -148,7 +148,7 @@ Two things stopped that event showing the name, both fixed:
   the person whose box holds it (`face_tid`), a named person's match carries over to its face,
   and `associatedFaceTrackerID` is the person's own face track.
 - **The embedding waits for a decision.** The first, unmatched embedding made Protect attach
-  unknown face group 50 a second before pi-port's match arrived. A face's `faceEmbed` is now
+  unknown face group 50 a second before diy-port's match arrived. A face's `faceEmbed` is now
   held out of enter/moving updates until the face is named or has had 2 fresh reads without a
   match; the leave always carries it.
 

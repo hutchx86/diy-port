@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The Pi-Port project
+# Copyright (C) 2026 The DIY-Port project
 # macOS container (NAT + pf): see docker/README.md#macos-orbstack--docker-desktop.
 
-name: piport-macos
+name: diyport-macos
 
 services:
   aiport:
@@ -11,8 +11,8 @@ services:
       dockerfile: docker/Dockerfile
       args:
         ACCEL: cpu
-    image: piport-cpu
-    container_name: piport-macos
+    image: diyport-cpu
+    container_name: diyport-macos
     # The wrapper keeps a stable identity and config in /data (docker/entrypoint.py).
     entrypoint: ["python3", "docker/entrypoint.py"]
     cap_add:
@@ -21,13 +21,13 @@ services:
     environment:
       AIPORT_CONSOLE: "${AIPORT_CONSOLE:?the Protect console's IP, e.g. 192.0.2.1}"
       AIPORT_ADVERTISE_IP: "${AIPORT_ADVERTISE_IP:?the Mac's alias address}"
-      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-piport-docker}"
+      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-diyport-docker}"
       AIPORT_DEBUG: "${AIPORT_DEBUG:-}"
     ports:
       - "${AIPORT_ADVERTISE_IP}:${AIPORT_PUBLISH_PORT:-18443}:443"
     shm_size: 256m   # per-camera snapshot JPEGs live in /dev/shm
     volumes:
-      - piport-macos-data:/data
+      - diyport-macos-data:/data
 
 volumes:
-  piport-macos-data:
+  diyport-macos-data:

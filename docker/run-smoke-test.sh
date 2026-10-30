@@ -8,8 +8,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
 cd "$ROOT"
 
-IMAGE="${IMAGE:-piport-cpu}"
-NAME="${NAME:-piport-cpu-smoke}"
+IMAGE="${IMAGE:-diyport-cpu}"
+NAME="${NAME:-diyport-cpu-smoke}"
 WAIT="${WAIT:-12}"
 LOG="$(mktemp)"
 BUILD_ARGS=()

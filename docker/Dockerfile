@@ -4,8 +4,8 @@
 #
 # AI Port emulator image (linux/amd64 + linux/arm64). Build from the repo root:
 #
-#   docker build -f docker/Dockerfile -t piport-cpu .                       # CPU
-#   docker build -f docker/Dockerfile --build-arg ACCEL=edgetpu -t piport .  # Coral
+#   docker build -f docker/Dockerfile -t diyport-cpu .                       # CPU
+#   docker build -f docker/Dockerfile --build-arg ACCEL=edgetpu -t diyport .  # Coral
 #
 # ACCEL picks the detector backend baked in: cpu (default) | edgetpu | none.
 # The RK3588 NPU backend is not offered in the image -- use scripts/install.sh
@@ -45,7 +45,7 @@ RUN case "$ACCEL" in cpu|edgetpu|none) ;; *) echo "ACCEL must be cpu|edgetpu|non
 
 ENV VIRTUAL_ENV=/opt/venv PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-COPY piport/requirements.txt /tmp/requirements.txt
+COPY diyport/requirements.txt /tmp/requirements.txt
 # hadolint ignore=DL3013
 RUN python3 -m venv "$VIRTUAL_ENV" \
  && pip install --no-cache-dir -r /tmp/requirements.txt \
@@ -56,10 +56,10 @@ RUN python3 -m venv "$VIRTUAL_ENV" \
  && rm -f /tmp/requirements.txt
 
 WORKDIR /app
-COPY piport/ piport/
+COPY diyport/ diyport/
 COPY scripts/fetch_models.py scripts/fetch_models.py
 COPY docker/entrypoint.py docker/entrypoint.py
-RUN rm -rf piport/tests piport/__pycache__ \
+RUN rm -rf diyport/tests diyport/__pycache__ \
  && if [ "$ACCEL" != "none" ]; then python3 scripts/fetch_models.py --backend "$ACCEL"; fi
 
 # avclient.py reads this ("none" turns detection off).
@@ -69,4 +69,4 @@ EXPOSE 10001/udp 443/tcp 8090/tcp
 
 # Stays root (binds :443/:10001). SIGINT so run_all.py reaps its four children.
 STOPSIGNAL SIGINT
-ENTRYPOINT ["python3", "piport/run_all.py"]
+ENTRYPOINT ["python3", "diyport/run_all.py"]

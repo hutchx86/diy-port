@@ -2,7 +2,7 @@
 
 Facts read from Ubiquiti's public AI Port firmware image (v5.1.12, see
 [protect-aiport-controller.md](protect-aiport-controller.md#firmware-source)) to guide
-pi-port's behaviour. Nothing here is copied code: only file names, setting names,
+diy-port's behaviour. Nothing here is copied code: only file names, setting names,
 default values and log-message wording, read with `strings` and `debugfs` without
 running anything. The image and the extracted binaries stay outside this repo.
 For the firmware actually running (adopted by Protect), see
@@ -17,7 +17,7 @@ For the firmware actually running (adopted by Protect), see
   MediaTek `.dla` files in `/usr/etc/ai_model/`:
   `SmartDetect_normal_20240810`, `SmartAnalyze_20221114`,
   `SmartFace_detect_fast_20250220`, `SmartFace_dense_lmk_20250429`. They're compiled
-  for that chip and can't be used by pi-port.
+  for that chip and can't be used by diy-port.
 
 ## Process layout
 
@@ -38,7 +38,7 @@ paired camera**.
 ## Stream control and capacity (`ubnt_onvifd`)
 
 - Points are floats with one decimal (`used points: %.1f`); Protect divides
-  `usedPoints` by 10. pi-port's 2 per camera matches Protect's HD rate. A 4K
+  `usedPoints` by 10. diy-port's 2 per camera matches Protect's HD rate. A 4K
   UniFi camera would be 5.0.
 - Error codes: `resolution_exceed`, `mixed_device_type`, `connection_exceed`.
   Protect 7.1.75 only knows the last two, so `resolution_exceed` falls into its
@@ -73,7 +73,7 @@ reply: `{"list":[{"deviceID","points"}]}`.
 
 This is exactly Protect's own estimate ×10, tiered on width × height × fps:
 ≤ 62,208,000 → 2; ≤ 121,927,680 → 2.5; ≤ 248,832,000 → 5; above → 10. Orientation
-doesn't matter. pi-port can sum this per active stream, using the `width`, `height`
+doesn't matter. diy-port can sum this per active stream, using the `width`, `height`
 and `fps` that `UiStreamControl` sends, and report it as `usedPoints`.
 
 ## Object detection and tracking (`ubnt_smart_detect`)
@@ -121,23 +121,23 @@ per-zone `levels`.
 ## Other files worth a look
 
 - `/etc/changevideosetttings-default-response.json` — a real `ChangeVideoSettings`
-  reply. pi-port's own reply is a guess.
+  reply. diy-port's own reply is a guess.
 - `/usr/etc/newplat/ispserver-default-response.json`,
   `osd-default-response.json`, `audioevents-default-response.json`.
 - `/etc/features.conf` — `motionDetect: ["enhanced"]`, `privacyMasks`,
   `squareEventThumbnail`, `videoCodecs: h264/h265/mjpg`, `edgeRecording: true`.
 
-## What this means for pi-port
+## What this means for diy-port
 
 1. **Timing should come from settings, not constants.** A track should open after
    `eventStartMSec` and close `eventStopMSec` after the object was last seen (default
-   1 s / 3 s). Protect sends both in `ChangeSmartDetectSettings`. pi-port's
+   1 s / 3 s). Protect sends both in `ChangeSmartDetectSettings`. diy-port's
    `AIPORT_MISS_S = 3` matches the default by coincidence. The G5 Bullet's ~2 s may
    mean Protect sends a different value.
 2. **Add motion detection per camera.** The AI Port runs `ubnt_smart_motion` for
    each paired camera, and Protect ignores the camera's own motion events.
    Implementing `EventSmartMotion` with `lingerEventStartMSec`/`StopMSec` and pulses
-   closes gap 2 in [protect-aiport-controller.md](protect-aiport-controller.md#gaps-in-pi-port).
+   closes gap 2 in [protect-aiport-controller.md](protect-aiport-controller.md#gaps-in-diy-port).
 3. **Tracking could move closer to the real one:** two-pass IoU + Hungarian matching
    (high- then low-confidence), lost tracks turning stationary after a timeout, and a
    warmup period.

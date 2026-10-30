@@ -3,7 +3,7 @@
 #
 # Dedicated LAN IP/MAC per container (macvlan); static IPs, wired NIC, illustrative only.
 
-name: piport
+name: diyport
 
 services:
   aiport:
@@ -12,22 +12,22 @@ services:
       dockerfile: docker/Dockerfile
       args:
         ACCEL: cpu
-    image: piport-cpu
-    container_name: piport-macvlan
+    image: diyport-cpu
+    container_name: diyport-macvlan
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
     environment:
       AIPORT_CONSOLE_HOST: "${AIPORT_CONSOLE_HOST:-}"
       AIPORT_CONSOLE_PORT: "${AIPORT_CONSOLE_PORT:-7442}"
-      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-piport}"
+      AIPORT_HOSTNAME: "${AIPORT_HOSTNAME:-diyport}"
       AIPORT_NAME: "${AIPORT_NAME:-AI Port}"
       AIPORT_IFACE: "${AIPORT_IFACE:-eth0}"
       AIPORT_MAC: "FCECDA000001"   # must match mac_address below (protocol identity)
       AIPORT_DEVICE_ID: "${AIPORT_DEVICE_ID:-}"  # unique per instance
     command: ["--state-dir", "/data"]
     volumes:
-      - piport-data:/data
+      - diyport-data:/data
     networks:
       lan:
         ipv4_address: 192.0.2.230   # <placeholder> -- a real free LAN address
@@ -47,4 +47,4 @@ networks:
           gateway: 192.0.2.1      # <-- replace
 
 volumes:
-  piport-data:
+  diyport-data:

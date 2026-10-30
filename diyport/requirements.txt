@@ -1,0 +1,27 @@
+paramiko>=3.4
+websockets>=12.0
+requests>=2.31
+numpy
+
+# Detector backends are installed separately, one per platform:
+#   * RK3588 NPU (Orange Pi 5 Plus): pip install rknn-toolkit-lite2
+#     (see diyport/README.md for the matching librknnrt.so upgrade it requires)
+#   * Coral Edge TPU (USB/PCIe): pip install ai-edge-litert
+#     (plus libedgetpu1-std -- scripts/install.sh or docker/ installs it)
+#   * CPU/Core ML (x86_64 / arm64, Apple-silicon macOS): pip install onnxruntime
+# detectors/ selects whichever backend is configured/present ([hardware] detector
+# or AIPORT_DETECTOR; AIPORT_BACKEND is the legacy spelling).
+#
+# Recommended, OpenCV: Frigate's motion gate, stationary-object checks and faces need it;
+# without it the motion gate falls back to an average diff that misses small or distant movers.
+#   pip install opencv-python-headless
+# Optional enrichment (enrich.py). The [onnx] extra matters on an rknn/edgetpu install,
+# which has no onnxruntime of its own; plain fast-alpr imports it and fails silently:
+#   pip install "fast-alpr[onnx]"   # license plates (fast-alpr) + faces (OpenCV)
+#   python3 scripts/fetch_models.py --face-models-only
+#
+# Optional, matching with Norfair (norfair_match.py; AIPORT_TRACKER). Its pins would pull
+# numpy below 2, which OpenCV 5 and onnxruntime need, so install it without them. Norfair
+# imports rich unconditionally, so it must be present too:
+#   pip install scipy rich
+#   pip install --no-deps norfair==2.3.0 "filterpy>=1.4.5,<2"

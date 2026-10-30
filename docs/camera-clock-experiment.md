@@ -31,7 +31,7 @@ RTSP session to the relay, reading sender reports and keeping
 
 ## Phase 2 (only if Phase 1 passes)
 
-pi-port does its own RTSP pull and feeds ffmpeg through a pipe, so each frame's RTP time is
+diy-port does its own RTSP pull and feeds ffmpeg through a pipe, so each frame's RTP time is
 known (UniFi streams have no B-frames: output frame n is input frame n). Each frame's camera
 time is its RTP time mapped through the latest sender report; send that as
 `clockMonotonic`/`clockStream`, derive `clockWall` from it, and set the box delay to 0 on those
@@ -51,7 +51,7 @@ Tests replay a clip recorded with its sender reports.
 
 Protect places boxes by `clockWall`; the camera's clock in `clockMonotonic`/`clockStream` doesn't
 change where they're drawn. Phase 2 is not worth doing. The experiment is off (neither setting
-in `~/.piport.env`); the code stays, unused, for a later look.
+in `~/.diyport.env`); the code stays, unused, for a later look.
 
 Walk A also measured Camera A's real delay: the event's first box was at 19:29:54.007 in
 playback, and the person appears at 19:29:55.307, 1.3 s early with the 1500 ms default. The

@@ -1,29 +1,29 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Copyright (C) 2026 The Pi-Port project
+# Copyright (C) 2026 The DIY-Port project
 # launchd agent for macOS: install|restart|stop|start|status|logs|uninstall.
-# Usage, the sudoers rule and state paths: piport/README.md.
+# Usage, the sudoers rule and state paths: diyport/README.md.
 set -u
 
-LABEL=${PIPORT_LAUNCHD_LABEL:-local.piport}
+LABEL=${DIYPORT_LAUNCHD_LABEL:-local.diyport}
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 PLIST=$HOME/Library/LaunchAgents/$LABEL.plist
 DOMAIN=gui/$(id -u)
-ENV_FILE=${PIPORT_ENV_FILE:-$HOME/.piport.env}
-LOG=${PIPORT_LOG:-$HOME/piport.log}
-LAUNCHD_LOG=$HOME/Library/Logs/piport-launchd.log   # the wrapper's own errors only
+ENV_FILE=${DIYPORT_ENV_FILE:-$HOME/.diyport.env}
+LOG=${DIYPORT_LOG:-$HOME/diyport.log}
+LAUNCHD_LOG=$HOME/Library/Logs/diyport-launchd.log   # the wrapper's own errors only
 
 die() { echo "macos_launchd: $*" >&2; exit 1; }
 
 loaded() { launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
 
 state_dir() {
-    sed -n 's/^[[:space:]]*PIPORT_STATE_DIR=//p' "$ENV_FILE" 2>/dev/null | tail -1 \
+    sed -n 's/^[[:space:]]*DIYPORT_STATE_DIR=//p' "$ENV_FILE" 2>/dev/null | tail -1 \
         | sed 's/[[:space:]]*#.*//;s/^"//;s/"$//'
 }
 
 check_ownership() {
-    # Everything pi-port writes must be yours: its state dir, the stream dir under /tmp, the
+    # Everything diy-port writes must be yours: its state dir, the stream dir under /tmp, the
     # repo (compiled files, the Apple helper build) and the log.
     local paths=("$REPO" "$LOG") dir
     dir=$(state_dir)
@@ -47,10 +47,10 @@ check_ownership() {
 
 check_not_running() {
     local pids
-    pids=$(pgrep -f "$REPO/piport/run_all.py" || true)
+    pids=$(pgrep -f "$REPO/diyport/run_all.py" || true)
     if [ -n "$pids" ] && ! loaded; then
-        echo "pi-port is already running outside launchd (pid $(echo "$pids" | tr ' ' ','))." >&2
-        echo "Stop it first (Ctrl-C in its terminal, or: sudo pkill -INT -f piport/run_all.py)." >&2
+        echo "diy-port is already running outside launchd (pid $(echo "$pids" | tr ' ' ','))." >&2
+        echo "Stop it first (Ctrl-C in its terminal, or: sudo pkill -INT -f diyport/run_all.py)." >&2
         exit 1
     fi
 }
@@ -66,7 +66,7 @@ write_plist() {
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>$REPO/scripts/piport_service.sh</string>
+        <string>$REPO/scripts/diyport_service.sh</string>
     </array>
     <key>WorkingDirectory</key><string>$REPO</string>
     <key>EnvironmentVariables</key>
@@ -77,7 +77,7 @@ write_plist() {
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
     <key>ThrottleInterval</key><integer>10</integer>
-    <!-- The wrapper gives pi-port 10 s to stop cleanly before TERM. -->
+    <!-- The wrapper gives diy-port 10 s to stop cleanly before TERM. -->
     <key>ExitTimeOut</key><integer>30</integer>
     <!-- Not throttled as a background job: it analyses video in real time. -->
     <key>ProcessType</key><string>Interactive</string>
@@ -110,14 +110,14 @@ status() {
 
 case "${1:-}" in
     install)
-        [ -r "$ENV_FILE" ] || die "no $ENV_FILE (copy scripts/piport.env.example)"
+        [ -r "$ENV_FILE" ] || die "no $ENV_FILE (copy scripts/diyport.env.example)"
         [ -x "$REPO/venv/bin/python" ] || die "no venv at $REPO/venv"
         check_ownership
         check_not_running
         loaded && launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null
         write_plist
         start
-        echo "installed $PLIST; pi-port starts now and at every login"
+        echo "installed $PLIST; diy-port starts now and at every login"
         sleep 3
         status
         ;;
