@@ -1,4 +1,4 @@
-# diy-port — a DIY UniFi Protect "AI Port" (Orange Pi · Raspberry Pi · x86 · Mac)
+# diy-port - a DIY UniFi Protect "AI Port" (Orange Pi · Raspberry Pi · x86 · Mac)
 
 <div align="center">
 
@@ -8,8 +8,8 @@
 **A reverse-engineering / interoperability proof of concept that makes a stock
 SBC or PC present itself to a real UniFi Protect console as genuine AI Port
 hardware (catalog model `UVC AI Port`, sysid `0xa5f1`).**
-**It speaks the vendor wire protocol only — discovery, adoption, camera pairing,
-video relay, pluggable object detection and detection events with thumbnails —
+**It speaks the vendor wire protocol only - discovery, adoption, camera pairing,
+video relay, pluggable object detection and detection events with thumbnails -
 with no firmware modification, no controller database writes and no Ubiquiti
 code or binaries.**
 
@@ -25,7 +25,7 @@ code or binaries.**
 > Not affiliated with, endorsed by, or connected to Ubiquiti Inc. "UniFi",
 > "UniFi Protect" and "AI Port" are trademarks of Ubiquiti Inc. No Ubiquiti
 > firmware or binaries are distributed here. Built with AI assistance under
-> human review — verify anything you rely on. See [Legal](#legal).
+> human review - verify anything you rely on. See [Legal](#legal).
 
 ## Quick start
 
@@ -55,7 +55,7 @@ AIPORT_CONSOLE_HOST=<console-ip> docker compose up -d --build
 |  |  |
 | --- | --- |
 | **What** | Emulates the UniFi Protect AI Port device role |
-| **Hardware** | Orange Pi 5 Plus (RK3588 NPU) — verified live; Raspberry Pi 5 + Coral (Docker bridge) — verified; x86_64 + Raspberry Pi 4/5 (CPU, Docker); Apple-silicon Mac (bare metal) |
+| **Hardware** | Orange Pi 5 Plus (RK3588 NPU) - verified live; Raspberry Pi 5 + Coral (Docker bridge) - verified; x86_64 + Raspberry Pi 4/5 (CPU, Docker); Apple-silicon Mac (bare metal) |
 | **Protocol / interface** | UBNT discovery UDP/10001; mTLS WSS :7442 (`ucp4` + classic avclient); RTSP relay :7447; ONVIF video push to :7550 |
 | **Detection** | Pluggable COCO detectors: RKNN (RK3588 NPU), Edge TPU (Coral), or `onnxruntime` on CPU/Core ML |
 | **Language** | Python 3 |
@@ -66,7 +66,7 @@ AIPORT_CONSOLE_HOST=<console-ip> docker compose up -d --build
 |  | Real AI Port | DIY Port |
 | --- | --- | --- |
 | **What it is** | Ubiquiti AI Port appliance (Ambarella) | This repo's Python, on an SBC/PC |
-| **Firmware** | Ubiquiti, signed | None — the emulator itself |
+| **Firmware** | Ubiquiti, signed | None - the emulator itself |
 | **Detection model** | Ubiquiti's own classifier | Stock COCO model mapped to person/vehicle/animal (YOLOv5 on the RK3588 NPU, SSDLite MobileDet on a Coral, YOLOv5n on CPU/Core ML), plus optional plates, faces and vehicle attributes |
 | **Output** | Full Ubiquiti product behaviour | The subset this project implements |
 
@@ -77,7 +77,7 @@ middleware, not a clone of the device.
 
 The host answers the console's L2 discovery, then adopts like a classic camera
 (`POST /api/1.2/manage` on HTTPS :443). It keeps two mTLS WebSocket connections
-to the console — the generic `ucp4` channel for management RPCs, and the classic
+to the console - the generic `ucp4` channel for management RPCs, and the classic
 avclient channel for camera pairing and detection events. When a camera is
 paired, the console hands the host an RTSP URL on its own internal relay
 (`:7447`); the host pulls that stream, runs the configured detector, and pushes
@@ -123,34 +123,34 @@ in `diyport/detectors/__init__.py`.
 
 ## Features
 
-- **Emulated AI Port device role** — L2 discovery, adoption, and both WebSocket
+- **Emulated AI Port device role** - L2 discovery, adoption, and both WebSocket
   connections a real console expects.
-- **Camera pairing and video relay** — pairs real cameras and pulls their stream
+- **Camera pairing and video relay** - pairs real cameras and pulls their stream
   from Protect's internal RTSP relay.
-- **Third-party (ONVIF) cameras** — pushes their video to Protect for live view
+- **Third-party (ONVIF) cameras** - pushes their video to Protect for live view
   and recording, and runs detection on the same stream.
-- **Pluggable real object detection** — RKNN on the RK3588 NPU, SSDLite
+- **Pluggable real object detection** - RKNN on the RK3588 NPU, SSDLite
   MobileDet (or a YOLOv5 Edge TPU export) on a Coral, and onnxruntime on CPU or
   the Apple-silicon Neural Engine (Core ML).
-- **Detection events with thumbnails** — `EventSmartDetect` with per-object
+- **Detection events with thumbnails** - `EventSmartDetect` with per-object
   snapshots and Full-FoV images, plus the overview/timeline thumbnails. One event
   per camera, with batched leaves, real zone ids and per-camera box timing.
-- **Frigate-derived detection quality** — motion gate, native-size region crops,
+- **Frigate-derived detection quality** - motion gate, native-size region crops,
   true-positive score gating, parked-object pixel checks and an optional Norfair
   tracker; all off or unchanged unless enabled.
-- **Optional enrichment** — license plates (`fast-alpr`), faces (YuNet/SFace,
+- **Optional enrichment** - license plates (`fast-alpr`), faces (YuNet/SFace,
   matched against Protect's known-faces DB) and vehicle type/colour (Apple's model
   on macOS, YOLO class + HSV elsewhere).
-- **Replay harness** — recorded clips run through the full pipeline with `--check`
+- **Replay harness** - recorded clips run through the full pipeline with `--check`
   expectations, so detection changes are tested before going live.
-- **Observability** — per-camera frames/inference lines and a host load line
+- **Observability** - per-camera frames/inference lines and a host load line
   (CPU per process group, GPU, NPU, power where readable); a launchd service on
   macOS.
-- **Multi-instance** — one reboot-surviving systemd unit and macvlan interface
+- **Multi-instance** - one reboot-surviving systemd unit and macvlan interface
   per instance on the board, or one container per host. Board/macvlan instances
   are distinct L2 devices; a host-network container shares the host's IP. A
   small web UI manages the board's instances.
-- **Honest state handling** — reflects real adopted state and clears local state
+- **Honest state handling** - reflects real adopted state and clears local state
   on the console's reset.
 
 ## Requirements
@@ -287,7 +287,7 @@ The Docker stack above is the recommended Pi path and is the same command as
 x86. Run bare metal only if you want the Pi 4's hardware H.264 decode (it stalls
 inside a container) or no Docker. Differences from the RK3588 board: **no NPU**,
 so install `onnxruntime` instead of `rknn-toolkit-lite2`, and there is **no
-`.rknn`** — the CPU `yolov5n.onnx` is used.
+`.rknn`** - the CPU `yolov5n.onnx` is used.
 
 ```bash
 sudo apt-get install -y ffmpeg python3-venv
@@ -300,7 +300,7 @@ sudo venv/bin/python diyport/run_all.py --iface <iface> [--state-dir <dir>]
 
 `detectors/__init__.py` selects onnxruntime automatically. On a **Pi 4**,
 `avclient.py` also enables `h264_v4l2m2m` hardware decode; on a **Pi 5** it does
-not (no H.264 hardware decoder — it software-decodes, which the faster CPU
+not (no H.264 hardware decoder - it software-decodes, which the faster CPU
 handles). For reboot survival, wrap `run_all.py` in a systemd unit with
 `KillMode=control-group`:
 
@@ -321,7 +321,7 @@ WantedBy=multi-user.target
 ### macOS (bare metal)
 
 Verified on an Apple-silicon Mac (M1 Pro): adopted by a Protect console, 3 cameras
-paired and streamed, person/vehicle detections with thumbnails. Run it on the host —
+paired and streamed, person/vehicle detections with thumbnails. Run it on the host -
 Docker Desktop's Linux VM can't put a container on the LAN as its own L2 device, so
 discovery and adoption fail there. With no `/sys`, `/proc` or `ip`, `config.py` finds
 the interface, MAC and IP through `route`, `networksetup` and `ifconfig` (`--iface en0`
@@ -394,7 +394,7 @@ sudo python3 diyport/run_all.py --iface <iface>
 ### Multiple instances (board)
 
 `instance_manager.py` creates one systemd unit per instance, each with its own
-macvlan sub-interface, MAC, and DHCP lease — a distinct L2 device:
+macvlan sub-interface, MAC, and DHCP lease - a distinct L2 device:
 
 ```bash
 sudo python3 diyport/instance_manager.py create lab2 --parent-iface <iface>
@@ -495,10 +495,10 @@ Device identity, network mode, the console address and the detector live in
 | `[identity] sysid` | `0xa5f1` | Hardware/model id |
 | `[identity] guid` | fixed catalog GUID | AI Port SKU GUID; must not be random |
 | `[identity] device_id` | UUID in `aiport.cfg` | Persistent device UUID; `instance_manager.py`/the container entrypoint generate a unique one per instance |
-| `[network] iface` / `mode` / `ip` | auto / `dhcp` / — | Interface to bind, and `dhcp` or `static` addressing |
-| `[console] host` / `port` | — / `7442` | The Protect console to dial when not yet adopted |
+| `[network] iface` / `mode` / `ip` | auto / `dhcp` / - | Interface to bind, and `dhcp` or `static` addressing |
+| `[console] host` / `port` | - / `7442` | The Protect console to dial when not yet adopted |
 | `[hardware] detector` | `auto` | `auto`, `rknn`, `edgetpu`, `cpu` or `none` (env `AIPORT_DETECTOR`) |
-| `[hardware] detector_model` | — | Model file for that backend; blank = its default in `models/` (env `AIPORT_MODEL_PATH`) |
+| `[hardware] detector_model` | - | Model file for that backend; blank = its default in `models/` (env `AIPORT_MODEL_PATH`) |
 
 Detector/runtime environment overrides: `AIPORT_DETECTOR`, `AIPORT_MODEL_PATH`,
 `AIPORT_OBJ_THRESH`, `AIPORT_HWDEC`, `AIPORT_HW_SCALE`, `AIPORT_FRAME_JPEG_FPS`,
@@ -584,14 +584,14 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
 <details>
 <summary><b>Changelog</b></summary>
 
-- **2026-10-29** — PR #4 (NorthernMan54): Frigate-style detection (motion gate,
+- **2026-10-29** - PR #4 (NorthernMan54): Frigate-style detection (motion gate,
   region crops, true-positive gating, parked objects, optional Norfair), optional
   enrichment (plates, faces against Protect's face DB, vehicle attributes incl.
   Apple's model on macOS), one event per camera with batched leaves and real zone
   ids, per-camera box timing, stream recovery/backoff, replay harness, per-camera
   frames and host load lines, macOS launchd service. Fixes: track timers follow
   the analysed-frame rate, and the auto-hwdec tests pass on an RK3588 host.
-- **Unreleased** — pluggable detector backends (`diyport/detectors/`): RK3588
+- **Unreleased** - pluggable detector backends (`diyport/detectors/`): RK3588
   NPU, Coral Edge TPU (Raspberry Pi 5) and CPU/Core ML, chosen by `[hardware]
   detector` / `install.sh --accel`; ONVIF cameras (video push to Protect plus
   detection); a Docker bridge setup for a console on the same host; credentials
@@ -600,12 +600,12 @@ CPU); `cpu` forces CPU and `coreml` requests Core ML (CPU with a warning if abse
   tuning; hardened HTTPS API (per-connection TLS, request limits), supervised
   `run_all.py`, drained ffmpeg stderr, real per-zone IDs, localhost-only web
   instance management, and persistent `/data` state in the LAN Compose stacks.
-- **2026-10** — firmware-update faking; optional sysinfo web UI; Pi 4 hardware
+- **2026-10** - firmware-update faking; optional sysinfo web UI; Pi 4 hardware
   decode and detector tuning; Docker CPU image/Komodo stack.
-- **2026-09** — Line Crossing; paired-camera snapshot retrieval over UCP4; the
+- **2026-09** - Line Crossing; paired-camera snapshot retrieval over UCP4; the
   `connectionHost` upload fix; event/feature-flag dedupe; multi-instance systemd
   units; one-shot `install.sh`.
-- **2026-08** — initial protocol stack: discovery, adoption, both WebSocket
+- **2026-08** - initial protocol stack: discovery, adoption, both WebSocket
   connections, NPU detection and `EventSmartDetect` with thumbnails.
 
 </details>
@@ -646,8 +646,8 @@ driver install fixes it.
 ## Credits
 
 Special thanks to
-[dciancu/unifi-protect-unvr-docker-arm64](https://github.com/dciancu/unifi-protect-unvr-docker-arm64)
-— the inspiration for getting into UniFi tinkering, and whose methods helped in
+[dciancu/unifi-protect-unvr-docker-arm64](https://github.com/dciancu/unifi-protect-unvr-docker-arm64),
+the inspiration for getting into UniFi tinkering, and whose methods helped in
 learning how parts of it work. Modular detector backends, Coral Edge TPU support
 and the ONVIF video push were contributed by [@issue](https://github.com/issue);
 macOS support (interface/MAC/IP detection and the Core ML detector) by
@@ -676,7 +676,7 @@ Third-party components and licenses are listed in [CREDITS.md](CREDITS.md).
 
 **This is a proof-of-concept project, not a production-ready system.** Large
 parts were produced with LLMs under human supervision, review, and real-hardware
-testing — review and verify everything yourself. **This software is provided "as
+testing - review and verify everything yourself. **This software is provided "as
 is", without warranty of any kind.** It binds privileged ports, manipulates
 network interfaces (macvlan/DHCP), and runs detection hardware; misconfiguration
 can disrupt your network or device. By using it you accept full responsibility for
@@ -687,8 +687,8 @@ not responsible or liable for any loss or damage arising from its use.**
 
 ## Security
 
-Report vulnerabilities privately via GitHub Security Advisories. Runtime state —
-the adoption token and the mTLS client certificate/key — is written to the
+Report vulnerabilities privately via GitHub Security Advisories. Runtime state -
+the adoption token and the mTLS client certificate/key - is written to the
 instance state directory (`--state-dir`) and excluded by `.gitignore`; never
 commit it. No secrets are stored in this repository. Logged payloads are passed
 through a redaction filter for camera RTSP credentials, the console's login

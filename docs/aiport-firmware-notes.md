@@ -120,11 +120,11 @@ per-zone `levels`.
 
 ## Other files worth a look
 
-- `/etc/changevideosetttings-default-response.json` — a real `ChangeVideoSettings`
+- `/etc/changevideosetttings-default-response.json` - a real `ChangeVideoSettings`
   reply. diy-port's own reply is a guess.
 - `/usr/etc/newplat/ispserver-default-response.json`,
   `osd-default-response.json`, `audioevents-default-response.json`.
-- `/etc/features.conf` — `motionDetect: ["enhanced"]`, `privacyMasks`,
+- `/etc/features.conf` - `motionDetect: ["enhanced"]`, `privacyMasks`,
   `squareEventThumbnail`, `videoCodecs: h264/h265/mjpg`, `edgeRecording: true`.
 
 ## What this means for diy-port

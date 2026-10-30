@@ -35,12 +35,12 @@ expects.
 `AiPortDecalModel` is a `CameraDecalModel` with `modelKey: "aiport"`, `product: "AI-Port"`,
 and platform `"UVC AI Port"`. It adds:
 
-- `pairedCameras` — the cameras this AI Port analyses.
-- `featureFlagsMap` — `{ <camera MAC>: featureFlags }`, filled from the AI Port's
+- `pairedCameras` - the cameras this AI Port analyses.
+- `featureFlagsMap` - `{ <camera MAC>: featureFlags }`, filled from the AI Port's
   `EventFeatureFlagsUpdated`.
-- `maxCameraCapacity` — always **1**.
-- `cameraUtilization` — what the AI Port last reported (`usedPoints / 10`).
-- `cameraCapacity` — Protect's own estimate. State is `ok`, `inconsistent` (estimate
+- `maxCameraCapacity` - always **1**.
+- `cameraUtilization` - what the AI Port last reported (`usedPoints / 10`).
+- `cameraCapacity` - Protect's own estimate. State is `ok`, `inconsistent` (estimate
   ≠ reported), or `overloaded` (> 1).
 - `AI_PORT_MAX_WIDTH × AI_PORT_MAX_HEIGHT` = 3840 × 2160. Bigger cameras must
   downscale first.
@@ -190,10 +190,10 @@ audio/video codec and mode keys. A doorbell always keeps `package`. The first
 ### Settings pushed to the AI Port
 
 `updateSmartDetectSettings` sends `ChangeSmartDetectSettings` to the AI Port **and**
-to the UniFi camera itself. The AI Port copy has the full set — `zones`, `lines`,
+to the UniFi camera itself. The AI Port copy has the full set - `zones`, `lines`,
 `loiterZones`, `excludeZones`, `secondLensZones`, `enableSmartDetect`,
 `eventStartMSec`, `eventStopMSec`, `recognitionAccuracy`, `reVerificationPolicy`,
-… — plus `deviceID` (and `algoVersion: "beta"` when applicable).
+… - plus `deviceID` (and `algoVersion: "beta"` when applicable).
 
 `updateCameraLprFlag` sends a **separate, partial** `ChangeSmartDetectSettings`:
 only `{isLprCamera, deviceID}`.

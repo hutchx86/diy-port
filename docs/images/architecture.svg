@@ -15,7 +15,7 @@
 
   <rect class="box" x="30" y="24" width="300" height="76"/>
   <text class="h" x="48" y="52">UniFi Protect console</text>
-  <text class="s" x="48" y="72">UNVR / UDM you own — recording,</text>
+  <text class="s" x="48" y="72">UNVR / UDM you own - recording,</text>
   <text class="s" x="48" y="88">events, thumbnails</text>
 
   <rect class="box" x="470" y="24" width="260" height="76"/>
@@ -36,7 +36,7 @@
   <text class="l" x="474" y="168" text-anchor="end">EventSmartDetect + snapshots</text>
 
   <rect class="pi" x="120" y="210" width="520" height="118"/>
-  <text class="h" x="140" y="238">Orange Pi 5 Plus (RK3588) — diy-port</text>
+  <text class="h" x="140" y="238">Orange Pi 5 Plus (RK3588) - diy-port</text>
   <text class="s" x="140" y="262">discovery.py   UDP/10001 responder</text>
   <text class="s" x="140" y="280">http_api.py    HTTPS :443 adopt / snapshot API</text>
   <text class="s" x="140" y="298">ucp4_client.py management WebSocket</text>

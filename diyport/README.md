@@ -194,10 +194,10 @@ The pipeline runs a real COCO detector through `diyport/detectors/`, chosen at r
 by `[hardware] detector` / `AIPORT_DETECTOR` (`auto|rknn|edgetpu|cpu|none`; `auto`
 takes the first backend whose runtime, hardware and model are present):
 
-- `rknn` — RK3588 NPU via `rknnlite` (quantized YOLOv5s `.rknn`).
-- `edgetpu` — Coral USB/PCIe via `ai-edge-litert` (SSDLite MobileDet, or a YOLOv5
+- `rknn` - RK3588 NPU via `rknnlite` (quantized YOLOv5s `.rknn`).
+- `edgetpu` - Coral USB/PCIe via `ai-edge-litert` (SSDLite MobileDet, or a YOLOv5
   Edge TPU export); see below.
-- `cpu` — `onnxruntime` (Ultralytics `yolov5n.onnx`; also accepts Rockchip's
+- `cpu` - `onnxruntime` (Ultralytics `yolov5n.onnx`; also accepts Rockchip's
   `yolov5s_relu.onnx`), on x86_64/arm64 or Core ML on Apple-silicon macOS.
 
 `AIPORT_MODEL_PATH` / `[hardware] detector_model` overrides the model file; output
@@ -213,7 +213,7 @@ python3 scripts/fetch_models.py --convert           # build .rknn (x86 host)
 ```
 
 For a containerized CPU install (x86 servers / Raspberry Pi 4/5) see `docker/README.md`.
-macOS is bare metal only — Docker Desktop's VM can't do the L2 discovery the console
+macOS is bare metal only - Docker Desktop's VM can't do the L2 discovery the console
 needs; see the root README.
 
 **Video decode** picks a hardware backend automatically, or by `AIPORT_HWDEC`

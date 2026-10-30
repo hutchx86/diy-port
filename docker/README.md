@@ -9,7 +9,7 @@ x86_64) with a detector backend baked in at build time:
 | `edgetpu` | Coral USB/PCIe (`ai-edge-litert` + `libedgetpu`) | SSDLite MobileDet, sha256-pinned; bridge stack default; USB Coral verified on a Pi 5 |
 | `none` | detection off | Protocol stack only |
 
-The RK3588 NPU backend is not offered in the image — use `scripts/install.sh`
+The RK3588 NPU backend is not offered in the image - use `scripts/install.sh`
 on that board. Coral device passthrough is wired into the bridge stack
 (`docker/docker-compose.yml`) only; the host/macvlan stacks are CPU-only unless
 you add `--device-cgroup-rule 'c 189:* rmw' -v /dev/bus/usb:/dev/bus/usb`
@@ -39,12 +39,12 @@ AIPORT_CONSOLE_HOST=<console-ip> docker compose up -d --build
 ```
 
 For a dedicated LAN IP per container (or several instances on one host), use
-`compose.macvlan.yaml` instead — see [Networking](#networking-lan-stack).
+`compose.macvlan.yaml` instead - see [Networking](#networking-lan-stack).
 
 Then adopt "AI Port" in Protect and pair a camera to it, exactly as on a board.
 
 `run-smoke-test.sh` builds the CPU image (`ACCEL=cpu`), starts it on host
-networking, and checks all four components are alive — no console or camera
+networking, and checks all four components are alive - no console or camera
 required:
 
 ```bash
@@ -83,7 +83,7 @@ Hikvision 4K ONVIF camera (video push, live view, recording, detection).
 | `AIPORT_IP` / `AIPORT_SUBNET` | `172.30.10.10` / `172.30.10.0/24` | Compose interpolation: container address/subnet; keep the IP fixed, the console stores it |
 
 The trade-off: the AI Port lives on the Docker subnet, so only that host can
-reach it. A console on another machine cannot — use `scripts/install.sh` or the
+reach it. A console on another machine cannot - use `scripts/install.sh` or the
 LAN Compose stack there.
 
 ## macOS (OrbStack / Docker Desktop)
@@ -127,7 +127,7 @@ in Protect before deleting it.
 
 The repo-root `compose.yaml` includes a `webui` service that runs
 `sysinfo_server.py` on `:8090` (`http://<host>:8090`): CPU per-core, memory,
-GPU/NPU when present, and the Coral's USB link speed. It has **no auth** — LAN
+GPU/NPU when present, and the Coral's USB link speed. It has **no auth** - LAN
 use only. Instance create/destroy is localhost-only by default (set
 `AIPORT_WEBUI_ALLOW_REMOTE=1` in the service to allow it from the LAN). The
 instance buttons are `instance_manager` (board) features; ignore them off-board.
@@ -152,12 +152,12 @@ set the stack environment and deploy:
 | `AIPORT_IFACE` | Pin an interface; blank auto-detects the default-route NIC |
 
 Set `extra_args = "--build"` (Komodo stack config) so each deploy rebuilds the
-image after a code change — otherwise compose reuses the existing `diyport-cpu`
+image after a code change - otherwise compose reuses the existing `diyport-cpu`
 image. Komodo builds the image from the repo, so the stack needs no pre-built
-image and no manual model fetch — the detector model is downloaded during build.
+image and no manual model fetch - the detector model is downloaded during build.
 
 For the full identity/network surface (static IP, parent interface, secret-free
-identity), mount a cfg instead — copy `diyport/aiport.cfg` and add:
+identity), mount a cfg instead - copy `diyport/aiport.cfg` and add:
 
 ```yaml
     volumes:
@@ -174,19 +174,19 @@ LAN, and the console must reach the container's `:443` at a real, stable LAN IP.
 Docker's default bridge breaks both (it source-NATs traffic and serves DNS
 through a stub at `127.0.0.11`), so the LAN stack has two supported modes:
 
-**Host networking — `compose.yaml` (simplest).** The container shares the host's
+**Host networking - `compose.yaml` (simplest).** The container shares the host's
 IP, DNS and interfaces and is **not** a distinct LAN device. The host must be on
 the same L2 LAN as the console, and the host's `:443`/`UDP-10001` must be free (a
-Traefik/Caddy/nginx on `:443` will clash). One instance per host — a second
+Traefik/Caddy/nginx on `:443` will clash). One instance per host - a second
 container would collide.
 
-**macvlan — `compose.macvlan.yaml` (dedicated IP per container).** Each container
+**macvlan - `compose.macvlan.yaml` (dedicated IP per container).** Each container
 gets its own LAN IP **and** MAC, its own `:443`, and can coexist with the host
 and with other instances. This is the Docker equivalent of the board's
 `instance_manager.py` macvlan, and the way to run several AI Ports on one host.
 Requirements and caveats:
 
-- Docker's macvlan driver has **no DHCP** — assign a static, free
+- Docker's macvlan driver has **no DHCP** - assign a static, free
   `ipv4_address` (and a matching `AIPORT_MAC`/`mac_address`); the file shows the
   pattern.
 - The **parent NIC must be wired**; Wi-Fi APs drop the extra MAC.
@@ -289,7 +289,7 @@ Untested:
   little margin; the RK3588 board avoids this (decode and inference on separate
   hardware blocks).
 - The known RTSP restart loop still occurs (~`Failed reading RTSP data: End of
-  file` then auto-restart) — pre-existing, not container-specific.
+  file` then auto-restart) - pre-existing, not container-specific.
 
 ## Raspberry Pi hardware decode (not in the container yet)
 
@@ -301,7 +301,7 @@ CPU ~4-5x. The Pi 5 exposes HEVC only (no H.264 hardware decoder), so
 
 - **In a container it stalls.** Passing `/dev/video10` + `/dev/vchiq` lets the
   *decoder* open (a file decodes), but the live RTSP + filter-graph pipeline then
-  produces no frames (ffmpeg sits at ~0 CPU, no snapshots) — the container lacks
+  produces no frames (ffmpeg sits at ~0 CPU, no snapshots) - the container lacks
   further VPU plumbing. Treat container hardware decode as unsupported for now;
   bare metal works.
 - **Decode isn't the whole cost.** With hardware decode on 3 cameras, ffmpeg
