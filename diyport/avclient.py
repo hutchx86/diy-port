@@ -2134,25 +2134,33 @@ def _dedupe_detections(detections, iou_thresh=0.4):
 # track; vehicles stay separate. AIPORT_CROSS_TYPE_IOU controls the overlap.
 CROSS_TYPE_IOU = envutil.env_float("AIPORT_CROSS_TYPE_IOU", 0.5)
 CROSS_TYPE_RECENT_MS = 1000
+# A person *track* claims an animal box only once confirmed or scoring at least this. Live
+# 2026-11-12 06:25 on Driveway: a cat became person tracker 548, confirmed at a median 0.71
+# (threshold 0.70) with no animal ever logged. An unconfirmed, weak person track on the cat
+# could relabel every "animal" read of it as person and so carry itself to confirmation.
+CROSS_TYPE_TRACK_SCORE = envutil.env_float("AIPORT_CROSS_TYPE_TRACK_SCORE", 0.8)
 
 
 def _animal_on_person(tracks, detections, now_ms, device_id=None):
     """Relabel as person each animal detection overlapping (IoU >= CROSS_TYPE_IOU) a person
-    detection in this frame or a person track seen within CROSS_TYPE_RECENT_MS, then dedupe
+    detection in this frame or a confirmed (or CROSS_TYPE_TRACK_SCORE) person track seen
+    within CROSS_TYPE_RECENT_MS, then dedupe
     the people. Returns the detections left."""
     if CROSS_TYPE_IOU <= 0:
         return detections
     people = [d["coord"] for d in detections if d["objectType"] == "person"]
     people += [tr["coord"] for tr in tracks.values() if tr["objectType"] == "person"
-               and now_ms - tr.get("seen_ms", now_ms) <= CROSS_TYPE_RECENT_MS]
+               and now_ms - tr.get("seen_ms", now_ms) <= CROSS_TYPE_RECENT_MS
+               and (tr.get("confirmed") or tr.get("score", 0.0) >= CROSS_TYPE_TRACK_SCORE)]
     changed = False
     for d in detections:
         if d["objectType"] != "animal":
             continue
         overlap = max((_iou(d["coord"], c) for c in people), default=0.0)
         if overlap >= CROSS_TYPE_IOU:
-            log.debug("real motion tick: animal box over a person (IoU %.2f) taken as the "
-                      "person for deviceID=%s", overlap, device_id)
+            log.info("real motion tick: animal box (score %.2f) over a person (IoU %.2f) "
+                     "taken as the person for deviceID=%s", d.get("score", 0.0), overlap,
+                     device_id)
             d["objectType"] = "person"
             changed = True
     if not changed:

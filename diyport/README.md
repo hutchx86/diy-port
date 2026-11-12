@@ -396,7 +396,9 @@ snapshot.
 same person, and the animal box could confirm and join the event as an animal (seen live on a
 person walking up a drive, IoU ~0.6). An animal box overlapping a person box in the same
 frame, or a person track seen within the last second, by `AIPORT_CROSS_TYPE_IOU` (default
-0.5; 0 turns this off) is taken as that person. The person always wins: letting the score or
+0.5; 0 turns this off) is taken as that person. A track only claims it once confirmed or
+scoring at least `AIPORT_CROSS_TYPE_TRACK_SCORE` (default 0.8): a weak, unconfirmed person
+track on a cat otherwise turned its animal reads into person and confirmed itself. The person always wins: letting the score or
 an animal track decide, a replay of two people crossing boxed the second person as an animal
 at 0.9 and gave every later box of theirs to the animal. A dog beside its walker overlaps far
 less. Vehicles are left out: a rider on a motorcycle overlaps it as much, and both count.

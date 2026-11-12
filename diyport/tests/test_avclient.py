@@ -2702,8 +2702,9 @@ class TestAnimalOnPerson(Base):
     PERSON = [569, 419, 166, 560]
     ANIMAL = [593, 460, 189, 524]
 
-    def tracks(self, seen_ms=1000, object_type="person"):
-        return {7: {"objectType": object_type, "coord": list(self.PERSON), "seen_ms": seen_ms}}
+    def tracks(self, seen_ms=1000, object_type="person", confirmed=True, score=0.75):
+        return {7: {"objectType": object_type, "coord": list(self.PERSON), "seen_ms": seen_ms,
+                    "confirmed": confirmed, "score": score}}
 
     def types(self, out):
         return sorted(d["objectType"] for d in out)
@@ -2719,6 +2720,23 @@ class TestAnimalOnPerson(Base):
     def test_animal_box_over_a_person_track_is_the_person(self):
         dets = [{"objectType": "animal", "score": 0.82, "coord": list(self.ANIMAL)}]
         self.assertEqual(self.types(av._animal_on_person(self.tracks(), dets, 1200)), ["person"])
+
+    def test_weak_unconfirmed_person_track_takes_no_animal(self):
+        # Live 2026-11-12 06:25 on Driveway: a cat confirmed as a person at 0.71.
+        dets = [{"objectType": "animal", "score": 0.82, "coord": list(self.ANIMAL)}]
+        out = av._animal_on_person(self.tracks(confirmed=False, score=0.71), dets, 1200)
+        self.assertEqual(self.types(out), ["animal"])
+
+    def test_strong_unconfirmed_person_track_still_takes_it(self):
+        dets = [{"objectType": "animal", "score": 0.82, "coord": list(self.ANIMAL)}]
+        out = av._animal_on_person(self.tracks(confirmed=False, score=0.85), dets, 1200)
+        self.assertEqual(self.types(out), ["person"])
+
+    def test_relabel_is_logged_at_info(self):
+        dets = [{"objectType": "animal", "score": 0.82, "coord": list(self.ANIMAL)}]
+        with self.assertLogs(av.log, "INFO") as cm:
+            av._animal_on_person(self.tracks(), dets, 1200)
+        self.assertIn("taken as the person", cm.output[0])
 
     def test_person_box_over_an_animal_track_stays_a_person(self):
         # Replay 13:33 on Driveway: the second person, boxed "animal" at 0.9 first, took every
