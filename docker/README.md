@@ -10,6 +10,11 @@ x86_64) with a detector backend baked in at build time:
 | `openvino` | Intel iGPU/Arc/NPU (`openvino` + Intel compute runtime) | amd64 only; YOLOv5n; needs `--device /dev/dri`; see [Intel GPU / NPU](#intel-gpu--npu-openvino) |
 | `none` | detection off | Protocol stack only |
 
+`--build-arg FACES=1` adds face detection and recognition to any of these:
+OpenCV plus the sha256-pinned YuNet/SFace models (`diyport/enrich.py`). Faces
+are matched against Protect's known-faces DB, which Protect pushes to the
+device. The default (`FACES=0`) leaves both out, and the stage stays off.
+
 The RK3588 NPU backend is not offered in the image - use `scripts/install.sh`
 on that board. Coral device passthrough is wired into the bridge stack
 (`docker/docker-compose.yml`) only; the host/macvlan stacks are CPU-only unless

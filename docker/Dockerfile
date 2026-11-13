@@ -10,12 +10,15 @@
 #
 # ACCEL picks the detector backend baked in: cpu (default) | edgetpu | openvino
 # (amd64 only; run with --device /dev/dri) | none.
+# FACES=1 adds face detection/recognition (OpenCV + YuNet/SFace, diyport/enrich.py); off by default:
+#   docker build -f docker/Dockerfile --build-arg ACCEL=openvino --build-arg FACES=1 -t diyport-openvino .
 # The RK3588 NPU backend is not offered in the image -- use scripts/install.sh
 # on that board. See docker/README.md.
 
 FROM debian:trixie-slim
 
 ARG ACCEL=cpu
+ARG FACES=0
 ARG TARGETARCH
 # Same pinned libedgetpu build and digests as scripts/install.sh.
 ARG LIBEDGETPU_TAG=16.0TF2.19.1-1
@@ -83,6 +86,11 @@ RUN python3 -m venv "$VIRTUAL_ENV" \
         openvino) pip install --no-cache-dir openvino ;; \
         cpu)     pip install --no-cache-dir onnxruntime ;; \
     esac \
+ && case "$FACES" in \
+        1) pip install --no-cache-dir opencv-python-headless ;; \
+        0) ;; \
+        *) echo "FACES must be 0 or 1" >&2; exit 1 ;; \
+    esac \
  && rm -f /tmp/requirements.txt
 
 WORKDIR /app
@@ -91,7 +99,8 @@ COPY scripts/fetch_models.py scripts/fetch_models.py
 COPY scripts/detector_check.py scripts/detector_check.py
 COPY docker/entrypoint.py docker/entrypoint.py
 RUN rm -rf diyport/tests diyport/__pycache__ \
- && if [ "$ACCEL" != "none" ]; then python3 scripts/fetch_models.py --backend "$ACCEL"; fi
+ && if [ "$ACCEL" != "none" ]; then python3 scripts/fetch_models.py --backend "$ACCEL"; fi \
+ && if [ "$FACES" = 1 ]; then python3 scripts/fetch_models.py --face-models-only; fi
 
 # avclient.py reads this ("none" turns detection off).
 ENV AIPORT_DETECTOR=${ACCEL}
