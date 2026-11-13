@@ -487,6 +487,11 @@ channel has been silent for 5 s. In every mode, the log warns
 `AIPORT_ONVIF_AUDIO_OFF` (empty or `0` for none, `1` for all, or a list of device IDs) is an experiment: the listed cameras' replies tell
 Protect audio is off, while their pushes keep the audio track.
 
+`AIPORT_ONVIF_CAMERA_TIMESTAMPS` (same list format) keeps the listed cameras' own frame
+timestamps on the copy pull instead of stamping each frame when it arrives. Arrival stamps
+(the default) pass network and RTSP-over-TCP jitter into the video Protect plays; use camera
+timestamps for a camera or restream whose timestamps are regular.
+
 If the camera's ONVIF profiles can't be read, diy-port tries again: twice within a few
 seconds, then every 30 s, 2 minutes and 10 minutes. Until it succeeds, `video2` and
 `video3` use the main stream.

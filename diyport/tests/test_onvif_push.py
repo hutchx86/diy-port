@@ -166,6 +166,57 @@ class TestDestination(unittest.TestCase):
         self.assertIn("streamName=ABC", cmd)
         self.assertEqual(cmd[-3:], ["-f", "flv", "-"])
 
+    def test_ffmpeg_cmd_wallclock_or_camera_timestamps(self):
+        cmd = onvif_push.ffmpeg_push_cmd("ffmpeg", "rtsp://cam/1", "ABC")
+        self.assertEqual(cmd[cmd.index("-use_wallclock_as_timestamps") + 1], "1")
+        self.assertLess(cmd.index("-use_wallclock_as_timestamps"), cmd.index("-i"))
+        camera = onvif_push.ffmpeg_push_cmd("ffmpeg", "rtsp://cam/1", "ABC", wallclock=False)
+        self.assertNotIn("-use_wallclock_as_timestamps", camera)
+        self.assertEqual(camera[camera.index("-i") + 1], "rtsp://cam/1")
+        i = cmd.index("-use_wallclock_as_timestamps")
+        self.assertEqual(cmd[:i] + cmd[i + 2:], camera)  # nothing else differs
+
+    def test_use_camera_timestamps_setting(self):
+        use = onvif_push.use_camera_timestamps
+        self.assertFalse(use({"AABBCCDDEEFF"}, setting=False))
+        self.assertTrue(use({"AABBCCDDEEFF"}, setting=True))
+        self.assertTrue(use(set(), setting=True))
+        listed = onvif_push.parse_camera_list("aa:bb:cc:dd:ee:ff, 112233445566")
+        self.assertTrue(use({"AABBCCDDEEFF"}, setting=listed))
+        self.assertFalse(use({"AABBCC000002"}, setting=listed))
+        self.assertFalse(use(set(), setting=listed))
+
+    def test_shared_pull_command_follows_its_cameras(self):
+        class Sink:
+            def __init__(self, device_id, channel):
+                self.device_id, self.channel = device_id, channel
+        pull = onvif_push.SharedPull("rtsp://cam/101")
+        pull._sinks[Sink("AABBCC000002", "video1")] = True
+        with mock.patch.object(onvif_push, "CAMERA_TIMESTAMPS", False):
+            cmd, camera_ts = pull._command()
+        self.assertFalse(camera_ts)
+        self.assertIn("-use_wallclock_as_timestamps", cmd)
+        with mock.patch.object(onvif_push, "CAMERA_TIMESTAMPS", {"AABBCC000002"}):
+            cmd, camera_ts = pull._command()
+        self.assertTrue(camera_ts)
+        self.assertNotIn("-use_wallclock_as_timestamps", cmd)
+
+    def test_pool_pull_knows_its_camera_before_any_push_subscribes(self):
+        # PullPool starts a SharedPull before the FlvPush subscribes and the pull builds its
+        # first ffmpeg command at once, so the camera must already be known then.
+        pool = onvif_push.PullPool()
+        with mock.patch.object(onvif_push.SharedPull, "start", lambda self: self), \
+                mock.patch.object(onvif_push, "CAMERA_TIMESTAMPS", {"AABBCC000002"}):
+            pull = pool.acquire("rtsp://cam/101", False, "video1", device_id="AABBCC000002")
+            self.assertEqual(pull._sinks, {})
+            cmd, camera_ts = pull._command()
+            self.assertTrue(camera_ts)
+            self.assertNotIn("-use_wallclock_as_timestamps", cmd)
+            other = pool.acquire("rtsp://cam/202", False, "video1", device_id="AABBCCDDEEFF")
+            self.assertFalse(other._command()[1])
+            self.assertIs(pool.acquire("rtsp://cam/101", False, "video3",
+                                       device_id="AABBCC000002"), pull)
+
     def test_ffmpeg_cmd_silent_track_without_camera_audio(self):
         cmd = onvif_push.ffmpeg_push_cmd("ffmpeg", "rtsp://cam/1", "ABC", camera_audio=False)
         self.assertIn("anullsrc=r=32000:cl=mono", cmd)
@@ -1071,7 +1122,7 @@ class TestAudioCopyFallback(unittest.TestCase):
         self.addCleanup(os.unlink, f.name)
         launched = []
 
-        def fake_cmd(ffmpeg_bin, url, name, camera_audio=True, copy_audio=True):
+        def fake_cmd(ffmpeg_bin, url, name, camera_audio=True, copy_audio=True, wallclock=True):
             launched.append(copy_audio)
             return [sys.executable, "-c",
                     "import sys; sys.stdout.buffer.write(open(sys.argv[1],'rb').read())", f.name]
