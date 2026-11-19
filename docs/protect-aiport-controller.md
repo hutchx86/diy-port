@@ -278,6 +278,12 @@ Ranked by impact. Each was checked against both codebases.
    Protect's estimate × 10), lists active streams in `GetStreamList`, and handles
    `ResetAIPortStreams` and `GetUiStreamPoints`.
 
+7. **Not in the Network app; "Failed to get device details ... 404" every minute.** The
+   MAC diy-port adopts under never appears on the wire, so Network has no client row to
+   attach Protect's device info to. There is also no Internal Storage (SD card) panel,
+   since the hello sends no `edgeRecording`/`hotplug`. Both are in
+   [protect-network-app.md](protect-network-app.md).
+
 Smaller notes:
 
 - `EventAudioStatus` is sent (diy-port reports firmware 5.1.x, above the 4.73.8 gate)
