@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(HERE, "aiport.cfg")
@@ -364,6 +365,55 @@ def stream_dir(state_dir=None):
     else:
         key = "default"
     return os.path.join(base, "aiport-streams", key)
+
+
+def _avclient_ready_path(state_dir=None):
+    return os.path.join(stream_dir(state_dir), ".avclient_ready")
+
+
+def mark_avclient_ready(state_dir=None):
+    """avclient.py calls this once its classic socket is up. Stamped with run_all's pid
+    (our parent) so a marker left by a previous service run can never pass for this one."""
+    path = _avclient_ready_path(state_dir)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(str(os.getppid()))
+    except OSError:
+        pass
+
+
+def clear_avclient_ready(state_dir=None):
+    try:
+        os.remove(_avclient_ready_path(state_dir))
+    except OSError:
+        pass
+
+
+def wait_avclient_ready(state_dir=None, timeout=20.0, poll=0.25, sleep=time.sleep,
+                        clock=time.monotonic):
+    """ucp4_client.py waits here before dialing Protect. Live 22:58 (2026-11-12): the ucp4
+    socket connected 1 s after a restart but the classic avclient socket only 3 s later (it
+    loads detector models first). Protect publishes devices.updatePassword the moment ucp4
+    connects and delivers it over the avclient socket ("No connection found for ...",
+    "Failed to change device password"), so every restart logged a failure plus a burst of
+    "not connected or authenticated" errors. With the avclient socket registered first the
+    first push lands. Returns True when ready, False on timeout (never block ucp4 for good:
+    avclient may be refused or waiting for adoption). timeout<=0 disables the wait."""
+    if timeout <= 0:
+        return True
+    path = _avclient_ready_path(state_dir)
+    deadline = clock() + timeout
+    while True:
+        try:
+            with open(path) as f:
+                if f.read().strip() == str(os.getppid()):
+                    return True
+        except OSError:
+            pass
+        if clock() >= deadline:
+            return False
+        sleep(poll)
 
 
 def make_stream_dir(path):

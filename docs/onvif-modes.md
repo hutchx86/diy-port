@@ -9,8 +9,14 @@ all of that instance's cameras.
 | `copy` (default) | ffmpeg copies the streams | `avclient.py` | 3 | About 1% of a core, 11-22 MB |
 | `transcode` | GStreamer encodes each channel | `avclient.py` | 1 (2 with shared decode off) | About 8-15% of a core, 130-290 MB |
 | `isolated` | As `transcode` | A process per camera | 1 (2 with shared decode off) | As `transcode`, plus 15 MB |
+| `go` | A Go sidecar (`go-restreamer/`, run by `run_all.py`) pulls and pushes the proven ffmpeg-era channels | The sidecar | As `copy` | |
+| `go-aiport` | The sidecar rebuilds the real AI Port's ONVIF video path (firmware v5.1.12, `docs/aiport-onvif-push-spec.md`): one main-stream pull, three hardware encodes, ubnt_streamer's FLV | The sidecar | 1 | |
 
 Move one camera at a time: `copy,<deviceID>=isolated`.
+
+In the go modes this process only sends the sidecar `configure_camera` / `remove_camera` over a
+unix socket (`restreamer.sock` in the state dir); shared decode reads the sidecar's DetectServer
+at the same `detect_socket()` path. They need no gst-launch.
 
 The transcode needs GStreamer. Without it, the camera logs an error and uses `copy`:
 

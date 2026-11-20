@@ -153,5 +153,51 @@ class TestPinnedGetInfo(unittest.TestCase):
         self.assertEqual(reply["version"], "5.9.9.9")
 
 
+class AvclientReadyGate(unittest.TestCase):
+    """ucp4 must not dial Protect before the classic avclient socket is registered: Protect's
+    devices.updatePassword (sent on ucp4 connect) goes over the avclient socket."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+        config.clear_avclient_ready(self.d)
+        self.addCleanup(config.clear_avclient_ready, self.d)
+
+    def test_times_out_when_avclient_never_ready(self):
+        t = [0.0]
+        ok = config.wait_avclient_ready(self.d, timeout=2, poll=0.5,
+                                        sleep=lambda s: t.__setitem__(0, t[0] + s),
+                                        clock=lambda: t[0])
+        self.assertFalse(ok)
+
+    def test_returns_once_marked(self):
+        calls = []
+
+        def sleep(_):
+            calls.append(1)
+            config.mark_avclient_ready(self.d)
+
+        self.assertTrue(config.wait_avclient_ready(self.d, timeout=5, sleep=sleep))
+        self.assertEqual(len(calls), 1)
+
+    def test_stale_marker_from_another_run_ignored(self):
+        config.mark_avclient_ready(self.d)
+        with open(config._avclient_ready_path(self.d), "w") as f:
+            f.write(str(os.getppid() + 1))
+        t = [0.0]
+        self.assertFalse(config.wait_avclient_ready(
+            self.d, timeout=1, poll=0.5, sleep=lambda s: t.__setitem__(0, t[0] + s),
+            clock=lambda: t[0]))
+
+    def test_cleared_marker_blocks_again_and_zero_timeout_disables(self):
+        config.mark_avclient_ready(self.d)
+        config.clear_avclient_ready(self.d)
+        t = [0.0]
+        self.assertFalse(config.wait_avclient_ready(
+            self.d, timeout=1, poll=0.5, sleep=lambda s: t.__setitem__(0, t[0] + s),
+            clock=lambda: t[0]))
+        self.assertTrue(config.wait_avclient_ready(self.d, timeout=0))
+
+
 if __name__ == "__main__":
     unittest.main()

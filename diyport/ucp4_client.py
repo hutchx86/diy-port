@@ -396,6 +396,9 @@ def main():
         if token is not None and not send_token:
             log.info("token %s already used on a prior connection -- reconnecting "
                       "tokenless (fingerprint should already be pinned)", token)
+        if adopted and not config.wait_avclient_ready(
+                STATE_DIR, timeout=float(os.environ.get("AIPORT_UCP4_WAIT_AVCLIENT_S", "20"))):
+            log.warning("classic avclient socket not up after the wait; dialing ucp4 anyway")
         try:
             run(host, port, token, send_token, device_info, adopted=adopted)
             log.warning("ucp4 connection closed cleanly by peer; reconnecting in 3s")
