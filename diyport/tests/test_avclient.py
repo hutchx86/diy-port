@@ -44,6 +44,7 @@ class Base(unittest.TestCase):
         av._detect_zone_types.clear()
         av._detect_zone_ids.clear()
         av._exclude_zones.clear()
+        av._reverify_policy.clear()
         av._snapshot_filename_to_device.clear()
         av._recent_snapshot_announcements.clear()
         av._last_object_coord_by_device.clear()
@@ -344,6 +345,47 @@ class TestZoneFiltering(Base):
                                   "payload": {"deviceID": "Z", "isLprCamera": 0}}, {})
         self.assertEqual(len(av._detect_zones["Z"]), 2)  # live 11:47: this wiped the zones
         self.assertEqual(av._detect_zone_types["Z"], [["vehicle"], None])
+
+
+class TestReverification(Base):
+    POLICY = {"person": {"enable": True, "mode": "custom",
+                         "minPresenceProbability": 40, "maxPresenceProbability": 80},
+              "vehicle": {"enable": False}, "animal": {"enable": True}}
+
+    def _settings(self, payload, mid=1):
+        av.handle_function(None, {"functionName": "ChangeSmartDetectSettings", "messageId": mid,
+                                  "payload": dict(payload, deviceID="R")}, {})
+
+    def test_policy_parsed_and_kept_on_partial_update(self):
+        self._settings({"reVerificationPolicy": self.POLICY})
+        # Disabled types are dropped; an enabled type without a range gets Protect's 40-80.
+        self.assertEqual(av._reverify_policy["R"], {"person": (40, 80), "animal": (40, 80)})
+        self._settings({"isLprCamera": 0}, mid=2)
+        self.assertEqual(av._reverify_policy["R"], {"person": (40, 80), "animal": (40, 80)})
+        # No AI Key adopted: Protect sends every type disabled.
+        self._settings({"reVerificationPolicy": {"person": {"enable": False}}}, mid=3)
+        self.assertFalse(av._reverify_eligible("R", "person", 60))
+
+    def test_eligible_inside_range_only(self):
+        self._settings({"reVerificationPolicy": self.POLICY})
+        self.assertTrue(av._reverify_eligible("R", "person", 40))
+        self.assertTrue(av._reverify_eligible("R", "person", 80))
+        self.assertFalse(av._reverify_eligible("R", "person", 39))
+        self.assertFalse(av._reverify_eligible("R", "person", 81))
+        self.assertFalse(av._reverify_eligible("R", "vehicle", 60))
+        self.assertFalse(av._reverify_eligible("R", "face", 60))
+        self.assertFalse(av._reverify_eligible("other", "person", 60))
+
+    def test_line_leave_snapshot_carries_flag(self):
+        self._settings({"reVerificationPolicy": self.POLICY})
+        line = {"id": "1", "p1": (0, 500), "p2": (1000, 500),
+                "direction": None, "object_types": None}
+        av._send_line_detect_event(None, "R", line, "leave", 42, "A2B", 1, 0,
+                                   "person", [480, 80, 40, 40], 0.6, 1000, 3)
+        self.assertTrue(self.sent[-1][1]["smartDetectSnapshots"][0]["reVerifyEligible"])
+        av._send_line_detect_event(None, "R", line, "leave", 43, "A2B", 2, 0,
+                                   "person", [480, 80, 40, 40], 0.9, 1000, 4)
+        self.assertFalse(self.sent[-1][1]["smartDetectSnapshots"][0]["reVerifyEligible"])
 
 
 class TestLineCrossing(Base):

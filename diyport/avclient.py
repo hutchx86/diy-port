@@ -402,6 +402,12 @@ _detect_zone_ids = {}
 _detect_zone_types = {}
 # deviceID -> Line Crossing segments parsed from ChangeSmartDetectSettings.lines.
 _lines = {}
+# deviceID -> {objectType: (min, max)} from ChangeSmartDetectSettings.reVerificationPolicy.
+# Only enabled types are kept. Protect enables a type when an AI Key is adopted and a
+# reverification policy covers the camera; the snapshot then sets reVerifyEligible.
+_reverify_policy = {}
+# Protect's DEFAULT_PRESENCE_PROBABILITY, used when an enabled policy has no range.
+_REVERIFY_DEFAULT_RANGE = (40, 80)
 # Global monotonic counter for fullfov snapshot filenames. It must be global, not
 # per-camera: two cameras' first leave would otherwise announce the same filename.
 _snapshot_seq = itertools.count(1)
@@ -1998,6 +2004,30 @@ def _parse_zones(zones_field):
     return [poly for _, _, poly in _valid_zones(zones_field)]
 
 
+def _parse_reverify_policy(policy_field):
+    """Parse ChangeSmartDetectSettings.reVerificationPolicy into {objectType: (min, max)}
+    for the enabled types: {person: {enable, mode, minPresenceProbability,
+    maxPresenceProbability}, vehicle: ..., animal: ...}."""
+    out = {}
+    if not isinstance(policy_field, dict):
+        return out
+    for object_type, p in policy_field.items():
+        if not isinstance(p, dict) or not p.get("enable"):
+            continue
+        lo, hi = p.get("minPresenceProbability"), p.get("maxPresenceProbability")
+        if not isinstance(lo, (int, float)) or not isinstance(hi, (int, float)):
+            lo, hi = _REVERIFY_DEFAULT_RANGE
+        out[str(object_type)] = (lo, hi)
+    return out
+
+
+def _reverify_eligible(device_id, object_type, level):
+    """reVerifyEligible for a snapshot: the policy enables the type and the confidence
+    (0-100) is inside its range, so Protect asks the AI Key to check it again."""
+    rng = _reverify_policy.get(device_id, {}).get(object_type)
+    return rng is not None and rng[0] <= level <= rng[1]
+
+
 def _parse_lines(lines_field):
     """Parse ChangeSmartDetectSettings.lines into 2-point segments (normalized
     0-1000; a `points` fallback is accepted)."""
@@ -2713,7 +2743,8 @@ def _send_multi_leave(ws, device_id, event_id, members, fallback):
             })
         snapshots.append({
             "clockBestMonotonic": 0, "clockBestWall": wall, "confidenceLevel": level,
-            "coord": box, "framingRect": box, "reVerifyEligible": False,
+            "coord": box, "framingRect": box,
+            "reVerifyEligible": _reverify_eligible(device_id, tr["objectType"], level),
             "smartDetectSnapshot": name, "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
             "smartDetectSnapshotName": "", "smartDetectSnapshotType": tr["objectType"],
             "smartDetectSnapshotWidth": SMART_SNAPSHOT_SIZE, "trackerID": tid,
@@ -4159,7 +4190,7 @@ def _send_smart_detect_event(ws, device_id, edge_type="none", event_id=1, statio
                 "confidenceLevel": t["level"],
                 "coord": snap_coord,
                 "framingRect": snap_coord,
-                "reVerifyEligible": False,
+                "reVerifyEligible": _reverify_eligible(device_id, t["object_type"], t["level"]),
                 "smartDetectSnapshot": snapshot_filename,
                 # Matches the object-crop image, not the full frame.
                 "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
@@ -4254,7 +4285,7 @@ def _send_line_detect_event(ws, device_id, line, edge_type, event_id, direction,
             "confidenceLevel": confidence_level,
             "coord": real_coord,
             "framingRect": real_coord,
-            "reVerifyEligible": False,
+            "reVerifyEligible": _reverify_eligible(device_id, object_type, confidence_level),
             "smartDetectSnapshot": snapshot_filename,
             "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
             "smartDetectSnapshotName": "",
@@ -4931,10 +4962,15 @@ def handle_function(ws, msg, device_info):
                 _detect_zone_ids[device_id] = _parse_zone_ids(payload.get("zones"))
             if "lines" in payload:
                 _lines[device_id] = _parse_lines(payload.get("lines"))
+            if "reVerificationPolicy" in payload:
+                _reverify_policy[device_id] = _parse_reverify_policy(
+                    payload.get("reVerificationPolicy"))
             log.info("ChangeSmartDetectSettings: deviceID=%s now has %d excludeZones "
-                      "polygon(s), %d detection-zone polygon(s), %d Line Crossing segment(s)",
+                      "polygon(s), %d detection-zone polygon(s), %d Line Crossing segment(s), "
+                      "reverification %s",
                       device_id, len(_exclude_zones.get(device_id, ())),
-                      len(_detect_zones.get(device_id, ())), len(_lines.get(device_id, ())))
+                      len(_detect_zones.get(device_id, ())), len(_lines.get(device_id, ())),
+                      _reverify_policy.get(device_id) or "off")
         if msg.get("responseExpected"):
             send_msg(ws, fn, {}, in_response_to=msg_id)
         return
@@ -4953,6 +4989,7 @@ def handle_function(ws, msg, device_info):
         _detect_zone_types.clear()
         _detect_zone_ids.clear()
         _lines.clear()
+        _reverify_policy.clear()
         _snapshot_filename_to_device.clear()
         _last_object_coord_by_device.clear()
         try:
