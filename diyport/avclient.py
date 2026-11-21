@@ -2034,6 +2034,17 @@ def _reverify_eligible(device_id, object_type, level):
     return rng is not None and rng[0] <= level <= rng[1]
 
 
+def _reverify_fields(device_id, object_type, level, snapshot_name):
+    """Snapshot fields for Second Stage Verification. Protect's AI daemon ignores
+    reVerifyEligible: it sends a Reverification request only for snapshots with a
+    non-empty reVerificationSnapshotPath (ubnt_ai_daemon ParseEventJSON -> imgPath).
+    Protect never reads the path itself (the AI Key gets an exported clip), so the
+    snapshot's own name is enough."""
+    if not _reverify_eligible(device_id, object_type, level):
+        return {"reVerifyEligible": False}
+    return {"reVerifyEligible": True, "reVerificationSnapshotPath": snapshot_name}
+
+
 def _parse_lines(lines_field):
     """Parse ChangeSmartDetectSettings.lines into 2-point segments (normalized
     0-1000; a `points` fallback is accepted)."""
@@ -2758,7 +2769,7 @@ def _send_multi_leave(ws, device_id, event_id, members, fallback):
         snapshots.append({
             "clockBestMonotonic": 0, "clockBestWall": wall, "confidenceLevel": level,
             "coord": box, "framingRect": box,
-            "reVerifyEligible": _reverify_eligible(device_id, tr["objectType"], level),
+            **_reverify_fields(device_id, tr["objectType"], level, name),
             "smartDetectSnapshot": name, "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
             "smartDetectSnapshotName": "", "smartDetectSnapshotType": tr["objectType"],
             "smartDetectSnapshotWidth": SMART_SNAPSHOT_SIZE, "trackerID": tid,
@@ -4222,7 +4233,7 @@ def _send_smart_detect_event(ws, device_id, edge_type="none", event_id=1, statio
                 "confidenceLevel": t["level"],
                 "coord": snap_coord,
                 "framingRect": snap_coord,
-                "reVerifyEligible": _reverify_eligible(device_id, t["object_type"], t["level"]),
+                **_reverify_fields(device_id, t["object_type"], t["level"], snapshot_filename),
                 "smartDetectSnapshot": snapshot_filename,
                 # Matches the object-crop image, not the full frame.
                 "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
@@ -4317,7 +4328,7 @@ def _send_line_detect_event(ws, device_id, line, edge_type, event_id, direction,
             "confidenceLevel": confidence_level,
             "coord": real_coord,
             "framingRect": real_coord,
-            "reVerifyEligible": _reverify_eligible(device_id, object_type, confidence_level),
+            **_reverify_fields(device_id, object_type, confidence_level, snapshot_filename),
             "smartDetectSnapshot": snapshot_filename,
             "smartDetectSnapshotHeight": SMART_SNAPSHOT_SIZE,
             "smartDetectSnapshotName": "",
