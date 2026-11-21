@@ -26,10 +26,13 @@ as "from the future" and the web player never starts.
 """
 import collections
 import hashlib
+import itertools
+import json
 import logging
 import os
 import shutil
 import queue
+import re
 import socket
 import struct
 import subprocess
@@ -48,10 +51,11 @@ log = logging.getLogger("aiport-onvif")
 # video2/video3 carry the camera's substream when it has one; UniFi medium/low are 720p/360p.
 SUB_CHANNELS = ("video2", "video3")
 
-# AIPORT_ONVIF_MODE: copy, transcode or isolated (per-camera exceptions allowed). See
-# docs/onvif-modes.md for the pipelines, G3 clock syncs and the live measurements.
-COPY, TRANSCODE, ISOLATED = "copy", "transcode", "isolated"
-_MODE_NAMES = (COPY, TRANSCODE, ISOLATED)
+# AIPORT_ONVIF_MODE: copy, transcode, isolated or go (per-camera exceptions allowed).
+# See docs/onvif-modes.md for the pipelines, G3 clock syncs and the live measurements.
+COPY, TRANSCODE, ISOLATED, GO = "copy", "transcode", "isolated", "go"
+_MODE_NAMES = (COPY, TRANSCODE, ISOLATED, GO)
+_GO_MODES = (GO,)
 
 
 def _camera_id(value):
@@ -123,7 +127,7 @@ def mode_of(device_id):
     """How this camera's video runs: copy where a transcode can't run here."""
     default, per_camera = MODES
     mode = per_camera.get(_camera_id(device_id), default)
-    if mode != COPY and not transcode_available():
+    if mode not in (COPY, GO) and not transcode_available():
         if device_id not in _fell_back:
             _fell_back.add(device_id)
             log.error("camera %s is set to %s, which needs macOS and gst-launch (%s; `brew install "
@@ -134,7 +138,7 @@ def mode_of(device_id):
 
 def transcodes(device_id):
     mode = mode_of(device_id)
-    if mode == COPY:
+    if mode in (COPY, *_GO_MODES):
         return False
     key = _camera_id(device_id)
     codec = _codecs.get(key)
@@ -145,6 +149,22 @@ def transcodes(device_id):
                       codec)
         return False
     return True
+
+
+def is_go(device_id):
+    return mode_of(device_id) == GO
+
+
+def any_go():
+    """True when some camera (or the default) is in go mode: run_all.py then runs the sidecar."""
+    default, per_camera = MODES
+    return GO in (default, *per_camera.values())
+
+
+def restreamer_sock(state_dir=None):
+    """The sidecar's socket, in the instance's state dir (several instances run per Mac);
+    run_all.py passes the same path as --sock."""
+    return os.path.join(state_dir or os.path.dirname(os.path.abspath(__file__)), "restreamer.sock")
 
 
 def warn_old_settings(environ=None):
@@ -1534,12 +1554,256 @@ PROFILE_RETRY_S = (30.0, 120.0, 600.0)
 PROFILE_WAIT_S = 10.0
 
 
+_URL_LOGIN = re.compile(r"(://)[^/@\s]*@")
+
+
+def _redact(text):
+    """Text with any rtsp://user:pass@ login blanked: for logs only, never the payload."""
+    return _URL_LOGIN.sub(r"\1***@", text) if isinstance(text, str) else text
+
+
+class RestreamerClient:
+    """Newline-delimited JSON-RPC 2.0 client for the Go sidecar's unix socket (go-restreamer/
+    SPEC.md). It keeps the desired configure_camera params per camera and re-sends all of them on
+    every (re)connect: run_all.py restarts the sidecar when it exits and a fresh one knows
+    nothing. Calls never block the caller; a call made while disconnected is just the desired
+    state the next connect sends. Replies are only logged (credentials redacted), except
+    get_stats, polled every stats_s while connected: its per-channel last_frame_age_ms is what
+    last_sent() turns into GoPush.last_sent, so a go channel's stall shows up in avclient's
+    _check_restream like any other push's."""
+
+    def __init__(self, sock_path, retry_s=(0.5, 1, 2, 5), stats_s=5.0):
+        self._sock_path = sock_path  # str, or a callable (avclient's STATE_DIR is set late)
+        self._retry_s = retry_s
+        self._lock = threading.Lock()
+        self._wanted = {}    # device_id -> configure_camera params
+        self._sock = None
+        self._ids = itertools.count(1)
+        self._thread = None
+        self._stop = threading.Event()
+        self._stats_s = stats_s
+        self._stats_ids = set()  # ids of get_stats calls awaiting a reply
+        self._stats = {}         # device_id -> {channel: last_frame_age_ms or None}
+        self._stats_at = None    # monotonic time the last get_stats reply arrived
+        self.detect_fps = 10  # shared_decode.detect_fps; PushManager sets it
+
+    def last_sent(self, device_id, channel):
+        """Monotonic time the sidecar last wrote video to Protect on this channel, as of the
+        last get_stats reply; None before its first frame or before any reply. Taken from the
+        reply's arrival, not now: a sidecar that stops answering ages its channels into stalls
+        instead of looking fresh forever."""
+        with self._lock:
+            age = self._stats.get(device_id, {}).get(channel)
+            if age is None or self._stats_at is None:
+                return None
+            return self._stats_at - age / 1000.0
+
+    def _take_stats_locked(self, result):
+        stats = {}
+        for device_id, cam in ((result or {}).get("cameras") or {}).items():
+            stats[device_id] = {c.get("channel"): c.get("last_frame_age_ms")
+                                for c in cam.get("channels") or []}
+        self._stats, self._stats_at = stats, time.monotonic()
+
+    def _poll_stats(self, sock):
+        while not self._stop.wait(self._stats_s):
+            with self._lock:
+                if self._sock is not sock:
+                    return
+                if self._wanted:
+                    self._send_locked("get_stats", {}, stats=True)
+
+    def _path(self):
+        return self._sock_path() if callable(self._sock_path) else self._sock_path
+
+    def configure(self, device_id, params):
+        with self._lock:
+            self._wanted[device_id] = params
+            self._start_locked()
+            self._send_locked("configure_camera", params)
+
+    def remove(self, device_id):
+        with self._lock:
+            if self._wanted.pop(device_id, None) is not None:
+                self._send_locked("remove_camera", {"device_id": device_id})
+
+    def close(self):
+        self._stop.set()
+        with self._lock:
+            self._drop_locked()
+
+    def _start_locked(self):
+        if not self._thread:
+            self._thread = threading.Thread(target=self._run, daemon=True, name="restreamer-rpc")
+            self._thread.start()
+
+    def _send_locked(self, method, params, stats=False):
+        if not self._sock:
+            return
+        msg = {"jsonrpc": "2.0", "id": next(self._ids), "method": method, "params": params}
+        if stats:
+            if len(self._stats_ids) > 20:  # a sidecar that never answers: don't grow forever
+                self._stats_ids.clear()
+            self._stats_ids.add(msg["id"])  # every 5 s: not worth an info line each
+        else:
+            log.info("restreamer <- %s %s", method, _redact(json.dumps(msg)))
+        try:
+            self._sock.sendall(json.dumps(msg).encode() + b"\n")
+        except OSError as e:
+            log.warning("restreamer send failed (%s): reconnecting", e)
+            self._drop_locked()
+
+    def _drop_locked(self):
+        sock, self._sock = self._sock, None
+        if sock:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def _run(self):
+        failed = 0
+        while not self._stop.is_set():
+            sock = socket.socket(socket.AF_UNIX)
+            try:
+                sock.connect(self._path())
+            except OSError as e:
+                sock.close()
+                if failed == 0:
+                    log.warning("restreamer socket %s unavailable (%s): retrying", self._path(), e)
+                self._stop.wait(self._retry_s[min(failed, len(self._retry_s) - 1)])
+                failed += 1
+                continue
+            failed = 0
+            with self._lock:
+                self._sock = sock
+                self._stats_ids.clear()
+                for params in list(self._wanted.values()):
+                    self._send_locked("configure_camera", params)
+            threading.Thread(target=self._poll_stats, args=(sock,), daemon=True,
+                             name="restreamer-stats").start()
+            try:
+                for line in sock.makefile("rb"):
+                    reply = line.decode("utf-8", "replace").strip()
+                    try:
+                        msg = json.loads(reply)
+                    except ValueError:
+                        msg = {}
+                    with self._lock:
+                        if isinstance(msg, dict) and msg.get("id") in self._stats_ids:
+                            self._stats_ids.discard(msg["id"])
+                            if "result" in msg:
+                                self._take_stats_locked(msg["result"])
+                    if '"error"' in reply:
+                        log.warning("restreamer -> %s", _redact(reply))
+            except OSError:
+                pass
+            with self._lock:
+                if self._sock is sock:
+                    self._drop_locked()
+            log.warning("restreamer connection closed: reconnecting")
+
+
+def _int_or_zero(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+_GO_REQUESTS = itertools.count(1)  # GoPush.request: one per push built for a Protect send
+
+
+class GoPush:
+    """What PushManager needs of an FlvPush, for a camera in go mode. The sidecar owns the pull
+    and the push; a channel here is one entry of the camera's configure_camera, re-sent whole on
+    each change (it is idempotent state) and removed with the last channel. last_sent comes
+    from the sidecar's get_stats (RestreamerClient.last_sent), never earlier than this push's
+    start, which is the grace period before a first frame. Protect's re-sent settings
+    (restart_source) need no action: the sidecar reconnects its own pushes."""
+
+    def __init__(self, device_id, channel, source_url, stream_name, destination, camera_audio,
+                 group, client, opus=(False, 0)):
+        self.host, self.port, _, _ = parse_destination(destination)  # ValueError as FlvPush
+        # (withOpus, opusSampleRate) from Protect's avSerializer.parameters for this channel
+        # (live 2026-11-12: true, 24000); rate 0 = not given. The sidecar sends an Opus track
+        # only when asked, at that rate: Protect reads the type-10 clock in its own rate.
+        self.opus, self.opus_rate = bool(opus[0]), int(opus[1] or 0)
+        self.device_id, self.channel = device_id, channel
+        self.source_url, self.stream_name, self.destination = source_url, stream_name, destination
+        self.camera_audio = camera_audio
+        self._group, self._client = group, client  # group: this camera's {channel: GoPush}
+        self.request = next(_GO_REQUESTS)
+        self.last_sent = time.monotonic()
+
+    @property
+    def last_sent(self):
+        sent = self._client.last_sent(self.device_id, self.channel)
+        return self._floor if sent is None else max(self._floor, sent)
+
+    @last_sent.setter
+    def last_sent(self, value):  # start, or PushManager carrying it over a re-send
+        self._floor = value
+
+    def matches(self, source_url, stream_name, destination, renditions=None, opus=(False, 0)):
+        return (self.source_url, self.stream_name, self.destination,
+                self.opus, self.opus_rate) == (
+            source_url, stream_name, destination, bool(opus[0]), int(opus[1] or 0))
+
+    def channel_params(self):
+        # A fresh GoPush is a fresh request from Protect (configure builds one per send):
+        # `request` lets the sidecar un-park this channel if Protect had rejected its push.
+        return {"request": self.request, **{"channel": self.channel, "stream_name": self.stream_name,
+                "rtsp_url": self.source_url, "dest_host": self.host, "dest_port": self.port,
+                "audio_enabled": bool(self.camera_audio), "width": 0, "height": 0,
+                "bitrate_kbps": 0, "opus": self.opus, "opus_sample_rate": self.opus_rate}}
+
+    def start(self):
+        self._group[self.channel] = self
+        self._client.configure(self.device_id, self._params())
+        return self
+
+    def _params(self):
+        params = {"device_id": self.device_id, "mode": "copy",
+                  "channels": [p.channel_params() for _, p in sorted(self._group.items())]}
+        video1 = self._group.get("video1")
+        if SHARED_DECODE and video1:
+            # The sidecar serves video1 to detection here, as DetectServer: avclient is unchanged.
+            params["shared_decode"] = {"enabled": True, "detect_fps": self._client.detect_fps,
+                                       "socket": detect_socket(video1.source_url)}
+        return params
+
+    def restart_source(self, reason):
+        log.info("push %s/%s: %s (go: the sidecar reconnects itself)", self.device_id,
+                 self.channel, reason)
+
+    def reconnect(self, reason):
+        """A re-send is a fresh request: a new `request` un-parks a push Protect had rejected
+        (rpc.Channel.Request); nothing else restarts. Before bbc6af1's reconnect-in-place this
+        came from building a new GoPush per re-send. Live 2026-11-19: without this,
+        go mode raised AttributeError here, which closed the avclient WS (1011) on every
+        re-send, 11 times in 75 s on every camera."""
+        self.request = next(_GO_REQUESTS)
+        self._client.configure(self.device_id, self._params())
+
+    def stop(self):
+        if self._group.get(self.channel) is self:
+            del self._group[self.channel]
+        if self._group:
+            self._client.configure(self.device_id, self._params())
+        else:
+            self._client.remove(self.device_id)
+
+
 class PushManager:
     """Per-device ONVIF source URL plus the channel pushes Protect asked for."""
 
     def __init__(self, ffmpeg_bin="ffmpeg", fetch_profiles=None, background=True,
-                 push_factory=None):
+                 push_factory=None, restreamer=None, detect_fps=10):
         self.ffmpeg_bin = ffmpeg_bin
+        self._restreamer = restreamer   # RestreamerClient, made on the first go camera
+        self._detect_fps = detect_fps
+        self._go_groups = {}  # device_id -> {channel: GoPush}
         self._push_factory = push_factory  # default FlvPush; see onvif_restream.py
         warn_old_settings()
         self._fetch_profiles = fetch_profiles or onvif_media.fetch_profiles
@@ -1548,6 +1812,7 @@ class PushManager:
         self._lookup_done = threading.Condition(self._lock)
         self._sources = {}   # device_id -> {"url", "audio", "width", "height", "fps"}
         self._wanted = {}    # device_id -> {channel: (stream_name, destination)}
+        self._wanted_opus = {}  # device_id -> {channel: (withOpus, opusSampleRate)}
         self._pushes = {}    # (device_id, channel) -> FlvPush
         self._last_sent = {}  # (device_id, channel) -> last_sent of a push a re-send replaced
         self._reconnected = {}  # (device_id, channel) -> monotonic time of the last reconnect
@@ -1736,13 +2001,21 @@ class PushManager:
                     continue
                 serializer = serializer or {}
                 dests = serializer.get("destinations") or []
-                name = (serializer.get("parameters") or {}).get("streamName")
+                params = serializer.get("parameters") or {}
+                name = params.get("streamName")
+                opus = self._wanted_opus.setdefault(device_id, {})
                 if not dests or any("/dev/null" in d for d in dests):
                     wanted.pop(channel, None)
+                    opus.pop(channel, None)
                 elif name and dests[0].startswith("tcp://"):
-                    if wanted.get(channel) == (name, dests[0]):
+                    want_opus = (bool(params.get("withOpus")),
+                                 _int_or_zero(params.get("opusSampleRate")))
+                    # A changed Opus ask is a new push (_sync sees it in matches), not a re-send.
+                    if wanted.get(channel) == (name, dests[0]) and \
+                            opus.get(channel, (False, 0)) == want_opus:
                         again.add(channel)
                     wanted[channel] = (name, dests[0])
+                    opus[channel] = want_opus
             now = time.monotonic()
             for channel in again:
                 key = (device_id, channel)
@@ -1750,8 +2023,14 @@ class PushManager:
                         >= RECONNECT_MIN_S:
                     self._reconnected[key] = now
                     push = self._pushes[key]
-                    push.restart_source("Protect re-sent its settings")
-                    push.reconnect("Protect re-sent its settings")
+                    # One push failing here must not escape into the WS message handler:
+                    # that ends the avclient connection, and Protect's re-send on reconnect
+                    # fails the same way (live 2026-11-19, go mode).
+                    try:
+                        push.restart_source("Protect re-sent its settings")
+                        push.reconnect("Protect re-sent its settings")
+                    except Exception:
+                        log.exception("push %s/%s: re-send reconnect failed", device_id, channel)
                     # Keep its last write, or a channel Protect keeps re-sending would
                     # look healthy however long it has delivered nothing.
                     self._last_sent[key] = push.last_sent
@@ -1764,6 +2043,7 @@ class PushManager:
             self._pushes.clear()
             self._sources.clear()
             self._wanted.clear()
+            self._wanted_opus.clear()
             self._last_sent.clear()
 
     def _sync(self, device_id):
@@ -1772,19 +2052,34 @@ class PushManager:
         urls = {channel: self._channel_url(device_id, src, channel) for channel in wanted}
         renditions = self._renditions(device_id, src) if src else None
         rend = lambda channel: renditions if channel in TRANSCODE_CHANNELS else None
+        opus_of = self._wanted_opus.get(device_id, {})
+        # Only go pushes take an Opus ask (the ffmpeg modes always make their own Opus); the
+        # ffmpeg modes instead restart when the camera's audio comes or goes.
+        extra = (lambda channel: {"opus": opus_of.get(channel, (False, 0))}) \
+            if is_go(device_id) else (lambda channel: {"camera_audio": src.get("audio", True)})
         for key in [k for k in self._pushes if k[0] == device_id]:
             want, url = wanted.get(key[1]), urls.get(key[1])
             if not want or not url or not self._pushes[key].matches(
-                    url, *want, rend(key[1]), src.get("audio", True)):
+                    url, *want, rend(key[1]), **extra(key[1])):
                 self._pushes.pop(key).stop()
         for channel, (name, dest) in wanted.items():
             url = urls[channel]
             if url and (device_id, channel) not in self._pushes:
                 try:
-                    push = self._pushes[(device_id, channel)] = (self._push_factory or FlvPush)(
-                        device_id, channel, url, name, dest, self.ffmpeg_bin,
-                        camera_audio=src["audio"], pool=self._pool,
-                        renditions=rend(channel)).start()
+                    if is_go(device_id):
+                        if self._restreamer is None:
+                            self._restreamer = RestreamerClient(restreamer_sock())
+                        self._restreamer.detect_fps = self._detect_fps
+                        push = self._pushes[(device_id, channel)] = GoPush(
+                            device_id, channel, url, name, dest, src["audio"],
+                            self._go_groups.setdefault(device_id, {}),
+                            self._restreamer, opus_of.get(channel, (False, 0))).start()
+                    else:
+                        push = self._pushes[(device_id, channel)] = (
+                            self._push_factory or FlvPush)(
+                            device_id, channel, url, name, dest, self.ffmpeg_bin,
+                            camera_audio=src["audio"], pool=self._pool,
+                            renditions=rend(channel)).start()
                     if (device_id, channel) in self._last_sent:
                         push.last_sent = self._last_sent.pop((device_id, channel))
                 except ValueError:

@@ -38,6 +38,7 @@ import requests
 import urllib3
 
 import facedb
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -433,8 +434,10 @@ BEST_FRAME_RECORDS_MAX = 40
 _enrich_cache = {}    # deviceID -> (snapshot mtime, plate/face detections read from it)
 # Third-party (ONVIF) cameras: Protect hands their video ingest to the AI Port,
 # which must push each channel to :7550 (see onvif_push.py).
-_onvif = onvif_push.PushManager(ffmpeg_bin=FFMPEG_BIN,
-                                push_factory=onvif_restream.Workers().push)
+_onvif = onvif_push.PushManager(
+    ffmpeg_bin=FFMPEG_BIN, push_factory=onvif_restream.Workers().push, detect_fps=DETECT_FPS,
+    # go mode: the sidecar's socket is under STATE_DIR, which main() sets after this import.
+    restreamer=onvif_push.RestreamerClient(lambda: onvif_push.restreamer_sock(STATE_DIR)))
 
 
 def _detector_settings(cfg=None):
@@ -498,6 +501,7 @@ def send_msg(ws, functionName, payload, to="ubnt_avclient", in_response_to=None,
 
 def _stop_stream(device_id):
     _stream_source.pop(device_id, None)
+    _shared_decoding.discard(device_id)
     proc = _active_streams.pop(device_id, None)
     if proc and proc.poll() is None:
         log.info("stopping RTSP pull for deviceID=%s (pid=%s)", device_id, proc.pid)
@@ -718,7 +722,8 @@ def _detect_filter_graph(width=DETECT_IMG_SIZE, height=None, hw=None, jpeg_every
 def _shared_decode_source(device_id, url):
     """(socket path, analyse every Kth frame) to decode this ONVIF camera's pushed video1
     (AIPORT_ONVIF_SHARED_DECODE), or None to pull the camera as before."""
-    if not (onvif_push.SHARED_DECODE and onvif_push.transcodes(device_id)):
+    if not (onvif_push.SHARED_DECODE and (onvif_push.transcodes(device_id)
+                                          or onvif_push.is_go(device_id))):
         return None
     # OnvifStreamControl starts detection before set_source, so the source may not be known.
     src = _onvif.source(device_id) or {}
@@ -751,6 +756,7 @@ def _start_stream(device_id, ip, port, uri, width=None, height=None, url=None):
     if direct:
         onvif_push.note_codec(device_id, probe.get("codec"))
     shared = _shared_decode_source(device_id, url) if direct else None
+    (_shared_decoding.add if shared else _shared_decoding.discard)(device_id)
     if probe["width"] and probe["height"]:
         # What the stream really is beats what the controller announced.
         _stream_dims[device_id] = (probe["width"], probe["height"])
@@ -3473,6 +3479,7 @@ def _start_motion_detector(ws, device_id, preserve_tracks=False):
 
     def _poll_loop():
         last_stamp = None
+        closed_noted = False  # this loop's WS closed and was logged once
         while not stop_event.is_set():
             # Wake on each new frame; with no stream the DETECT_INTERVAL_S timeout still
             # ticks so tracks close.
@@ -3497,6 +3504,15 @@ def _start_motion_detector(ws, device_id, preserve_tracks=False):
             started = time.monotonic()
             try:
                 _motion_tick(ws, device_id)
+            except ConnectionClosed as e:
+                # The avclient WS this loop holds has closed; the stream restart that follows
+                # a reconnect supersedes this loop with one on the new WS.
+                # Live 2026-11-19: ~100 tracebacks from EventSmartMotion sends after
+                # a 1011 close. Say it once per loop, not once per frame.
+                if not closed_noted:
+                    closed_noted = True
+                    log.warning("deviceID=%s: avclient connection closed (%s); events wait "
+                                "for the reconnect", device_id, e)
             except Exception:
                 log.exception("motion poll tick crashed for deviceID=%s", device_id)
             _last_analysed[device_id] = time.monotonic()
@@ -3945,7 +3961,15 @@ def _parse_box_delay(spec):
 _BOX_DELAY_DEFAULT_MS, _BOX_DELAY_MS = _parse_box_delay(os.environ.get("AIPORT_BOX_DELAY_MS"))
 
 
+# Cameras whose detection decodes the pushed video1 (shared decode): each frame already carries
+# the wall time Protect gave it, so there is no relay/decode lag left to back-date. Live
+# 2026-11-12 on a Hikvision camera (go mode): its isolated-mode 1600 ms made every box 1.6 s early.
+_shared_decoding = set()
+
+
 def _box_delay_ms(device_id):
+    if device_id in _shared_decoding:
+        return 0
     return _BOX_DELAY_MS.get(str(device_id).upper(), _BOX_DELAY_DEFAULT_MS)
 
 
@@ -4729,6 +4753,7 @@ def _reset_grace_expired(gen):
     with _reset_lock:
         if gen != _reset_gen:
             return
+    with _reset_lock:
         victims = [d for d, g in _reset_pending.items() if g == gen]
     for d in victims:
         # Re-check just before stopping: a start may have arrived while we slept.
@@ -5123,6 +5148,7 @@ def run(host, port, device_info, token=None):
         _refusals.connected()
         global _status_ws
         _status_ws = ws
+        config.mark_avclient_ready(STATE_DIR)  # lets ucp4_client dial (see wait_avclient_ready)
         # hwrev must be non-null or hardwareRevision stays empty; 1 is a placeholder.
         now_ms = int(time.time() * 1000)
         send_msg(ws, "ubnt_avclient_hello", {
@@ -5336,6 +5362,7 @@ def main():
             return
         except Exception as e:
             log.warning("classic avclient connection ended: %r", e)
+        config.clear_avclient_ready(STATE_DIR)
         _refusals.ended(bool(token or hosts))
         # Always pace reconnects; a clean close must not skip the sleep (rate limiter is 60 msgs/60s).
         elapsed = time.time() - start

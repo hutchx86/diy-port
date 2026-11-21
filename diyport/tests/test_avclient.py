@@ -2065,6 +2065,19 @@ class TestFrameStats(Base):
         line = [m for m in logs.output if "frames for deviceID=FS" in m][0]
         self.assertIn("ms a pass, box delay 1600 ms", line)
 
+    def test_shared_decode_ignores_the_box_delay(self):
+        # Shared-decode frames carry Protect's own wall time: a configured delay would only
+        # back-date boxes (live 2026-11-12 a Hikvision camera: 1600 ms -> boxes 1.6 s early).
+        with mock.patch.dict(av._BOX_DELAY_MS, {"FS": 1600}):
+            self.assertEqual(av._box_delay_ms("FS"), 1600)
+            av._shared_decoding.add("FS")
+            try:
+                self.assertEqual(av._box_delay_ms("FS"), 0)
+                av._stop_stream("FS")
+                self.assertEqual(av._box_delay_ms("FS"), 1600)
+            finally:
+                av._shared_decoding.discard("FS")
+
     def test_frame_without_a_number_is_ignored(self):
         # Live 12:39: a first pass with no frame number yet crashed every camera's loop.
         av._note_frame("FS", None, 0.02, now=1000.0)
@@ -2734,6 +2747,26 @@ class TestMotionLoopLifecycle(Base):
         time.sleep(0.2)
         self.assertEqual(self.ticks, ["D", "D"])   # a new frame is analysed
         av._stop_motion_detector("D")
+
+    def test_closed_ws_logs_once_not_per_frame(self):
+        # Live 2026-11-19: after a 1011 close, ~100 EventSmartMotion sends each
+        # logged a traceback. A closed WS is one warning per loop, not one per frame.
+        from websockets.exceptions import ConnectionClosedError
+
+        def closed(ws, dev):
+            self.ticks.append(dev)
+            raise ConnectionClosedError(None, None)
+        av._motion_tick = closed
+        with self.assertLogs(av.log, "WARNING") as logs:
+            av._start_motion_detector(None, "D")
+            for n in range(5):
+                av._latest_frame_time["D"] = (n, n)
+                time.sleep(0.05)
+            av._stop_motion_detector("D")
+        self.assertGreater(len(self.ticks), 1)
+        lines = [l for l in logs.output if "connection closed" in l]
+        self.assertEqual(len(lines), 1, logs.output)
+        self.assertFalse([l for l in logs.output if "crashed" in l], logs.output)
 
     def test_restart_does_not_leave_overlapping_loops(self):
         # A stream restart calls _start_motion_detector again; the previous loop

@@ -239,12 +239,13 @@ class TestPushManager(unittest.TestCase):
 
         def make(device_id, channel, url, name, dest, ffmpeg_bin, camera_audio=True, pool=None,
                  renditions=None):
+            audio = camera_audio
             push = mock.Mock()
             push.args = (device_id, channel, url, name, dest)
             push.renditions = renditions
-            push.matches.side_effect = lambda u, n, d, r=None, a=None: (
+            push.matches.side_effect = lambda u, n, d, r=None, camera_audio=None: (
                 (u, n, d, r) == (url, name, dest, renditions)
-                and (a is None or bool(a) == bool(camera_audio)))
+                and (camera_audio is None or bool(camera_audio) == bool(audio)))
             push.start.return_value = push
             self.started.append(push)
             return push
