@@ -382,10 +382,14 @@ class TestReverification(Base):
                 "direction": None, "object_types": None}
         av._send_line_detect_event(None, "R", line, "leave", 42, "A2B", 1, 0,
                                    "person", [480, 80, 40, 40], 0.6, 1000, 3)
-        self.assertTrue(self.sent[-1][1]["smartDetectSnapshots"][0]["reVerifyEligible"])
+        snap = self.sent[-1][1]["smartDetectSnapshots"][0]
+        self.assertTrue(snap["reVerifyEligible"])
+        # The AI daemon only asks for a reverification when this path is non-empty.
+        self.assertEqual(snap["reVerificationSnapshotPath"], snap["smartDetectSnapshot"])
         av._send_line_detect_event(None, "R", line, "leave", 43, "A2B", 2, 0,
                                    "person", [480, 80, 40, 40], 0.9, 1000, 4)
         self.assertFalse(self.sent[-1][1]["smartDetectSnapshots"][0]["reVerifyEligible"])
+        self.assertNotIn("reVerificationSnapshotPath", self.sent[-1][1]["smartDetectSnapshots"][0])
 
 
 class TestLineCrossing(Base):
