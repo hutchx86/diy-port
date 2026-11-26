@@ -457,7 +457,7 @@ and asks for each channel to be pushed to `tcp://<console>:7550` in Ubiquiti's
 `extendedFlv` format (`ChangeVideoSettings`). `diyport/onvif_push.py` does that,
 and the AI Port runs detection on the camera's stream like on a UniFi camera's.
 
-There are three ways to run this video, set by `AIPORT_ONVIF_MODE`: a default, then any
+There are four ways to run this video, set by `AIPORT_ONVIF_MODE`: a default, then any
 per-camera exceptions by device ID (MAC), such as `isolated,AABBCCDDEEFF=copy`.
 
 | Mode | What it does | Pushes run in | Camera sessions | Sizes sent to Protect |
@@ -465,10 +465,16 @@ per-camera exceptions by device ID (MAC), such as `isolated,AABBCCDDEEFF=copy`.
 | `copy` (default) | `ffmpeg` copies the camera's main stream and substream | `avclient.py` | 3, with detection | The camera's own |
 | `transcode` | One `gst-launch` decodes the main stream once and encodes each channel with VideoToolbox, as the real AI Port does | `avclient.py` | 1 (2 with `AIPORT_ONVIF_SHARED_DECODE=0`) | `video1` main size at 4000 kbps, `video2` substream size at 2000 kbps, `video3` 360 lines at 500 kbps |
 | `isolated` | As `transcode` | A process per camera | 1 (2 with `AIPORT_ONVIF_SHARED_DECODE=0`) | As `transcode` |
+| `go` | A Go sidecar (`go-restreamer/`) pulls and pushes the same channels | `run_all.py` | As `copy` | As `copy` |
 
 `transcode` and `isolated` need macOS and `brew install gstreamer`. On an M1 Pro a transcoded
 camera used about 11% of one core and up to about 290 MB, against about 1% and 11-22 MB for
 `copy`. On a machine without them, the camera logs an error and uses `copy`.
+
+`go` needs Go 1.27.4 to build: `make -C go-restreamer linux-arm64`, then either copy the
+binary to `go-restreamer/bin/diyport-restreamer` or set `DIYPORT_RESTREAMER_BIN` to
+`go-restreamer/bin/diyport-restreamer-linux-arm64`. `run_all.py` accepts either name. The
+Docker image builds it in a Go stage. See `docs/onvif-modes.md`.
 
 In `isolated`, a crash in the push costs that camera's video for a few seconds and the
 process is replaced. With shared decode on (the default) detection reads the video1 that

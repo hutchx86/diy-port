@@ -42,6 +42,28 @@ jobs:
       - name: Unit tests
         run: cd diyport && python3 -m unittest discover -s tests -v
 
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go-restreamer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go-restreamer/go.mod
+          cache-dependency-path: go-restreamer/go.sum
+      - name: Install ffmpeg (audio and transcode tests use it; they skip without it)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: Vet and test (race)
+        run: make test
+      - name: Build (linux arm64)
+        run: make linux-arm64
+
   docker:
     runs-on: ubuntu-latest
     steps:

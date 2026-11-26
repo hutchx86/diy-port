@@ -9,15 +9,106 @@ Usage:
   sudo python3 run_all.py --iface eth0
 """
 import argparse
+import logging
 import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 import config
+import envutil
+import onvif_push
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+log = logging.getLogger("diyport.run_all")
+
+RESTREAMER_BIN = os.path.join(os.path.dirname(HERE), "go-restreamer", "bin", "diyport-restreamer")
+# make linux-arm64 writes the target suffix; accept either name and an explicit override.
+RESTREAMER_BIN_NAMES = ("diyport-restreamer", "diyport-restreamer-linux-arm64")
+RESTART_MAX_S = 30.0
+RESTART_HEALTHY_S = 60.0  # a run this long starts the backoff again
+
+
+def restreamer_bin():
+    """DIYPORT_RESTREAMER_BIN, else the first sidecar binary a build may have written. The
+    unsuffixed name is what `make` writes; linux-arm64 adds the target suffix."""
+    env = os.environ.get("DIYPORT_RESTREAMER_BIN")
+    if env:
+        return env
+    for name in RESTREAMER_BIN_NAMES:
+        path = os.path.join(os.path.dirname(HERE), "go-restreamer", "bin", name)
+        if os.path.isfile(path):
+            return path
+    return RESTREAMER_BIN  # the canonical path, so the missing-binary error names it
+
+
+class RestreamerSupervisor:
+    """Runs the Go sidecar for AIPORT_ONVIF_MODE=go (or DIYPORT_RESTREAMER=1) and restarts it on
+    exit, backing off 1, 2, 4 .. RESTART_MAX_S. It doesn't know the cameras: avclient's
+    RestreamerClient re-sends every configure_camera when it reconnects to the new socket. A
+    missing binary is one error and go cameras stay unpushed; the other stages are unaffected."""
+
+    def __init__(self, binary, sock, popen=subprocess.Popen, clock=time.monotonic):
+        self.binary, self.sock, self._popen, self._clock = binary, sock, popen, clock
+        self._stop = threading.Event()
+        self._proc = None
+        self._thread = None
+
+    def start(self):
+        if not os.path.isfile(self.binary) or not os.access(self.binary, os.X_OK):
+            log.error("go restreamer binary %s not found or not executable (build go-restreamer or "
+                      "set DIYPORT_RESTREAMER_BIN): go-mode cameras will not be pushed", self.binary)
+            return False
+        self._thread = threading.Thread(target=self._run, daemon=True, name="restreamer-super")
+        self._thread.start()
+        return True
+
+    def _run(self):
+        delay = 1.0
+        while not self._stop.is_set():
+            try:
+                os.unlink(self.sock)  # a dead sidecar's socket would fail the bind
+            except OSError:
+                pass
+            began = self._clock()
+            try:
+                # AIPORT_ONVIF_G711=copy|aac: the sidecar's G.711 handling (default copy).
+                # AIPORT_ONVIF_OPUS=on|off: the sidecar's browser-live-view Opus track (default on).
+                # AIPORT_ONVIF_AUDIO_SHARE=on|off: one audio ffmpeg per camera URL (default on).
+                # AIPORT_ONVIF_OPUS_RATE: force the Opus sample rate for every channel (default: Protect's).
+                # AIPORT_ONVIF_PACE_MS: the sidecar's send buffer (default 1000; 0 = off).
+                g711 = os.environ.get("AIPORT_ONVIF_G711")
+                opus = os.environ.get("AIPORT_ONVIF_OPUS")
+                share = os.environ.get("AIPORT_ONVIF_AUDIO_SHARE")
+                opus_rate = os.environ.get("AIPORT_ONVIF_OPUS_RATE")
+                pace = os.environ.get("AIPORT_ONVIF_PACE_MS")
+                self._proc = self._popen([self.binary, "--sock", self.sock]
+                                         + (["--g711", g711] if g711 else [])
+                                         + (["--opus", opus] if opus else [])
+                                         + (["--audio-share", share] if share else [])
+                                         + (["--opus-rate", opus_rate] if opus_rate else [])
+                                         + (["--pace-ms", pace] if pace else []))
+                rc = self._proc.wait()
+            except OSError as e:
+                log.error("go restreamer failed to start: %s", e)
+                rc = None
+            if self._stop.is_set():
+                return
+            delay = 1.0 if self._clock() - began >= RESTART_HEALTHY_S else min(delay * 2, RESTART_MAX_S)
+            log.warning("go restreamer exited rc=%s: restarting in %.0f s", rc, delay)
+            self._stop.wait(delay)
+
+    def stop(self):
+        self._stop.set()
+        proc = self._proc
+        if proc and proc.poll() is None:
+            proc.terminate()  # SIGTERM closes everything cleanly
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
 
 
 def _stop_all(procs):
@@ -132,6 +223,13 @@ def main():
         subprocess.Popen(classic_args),
     ]
 
+    restreamer = None
+    if onvif_push.any_go() or envutil.env_bool("DIYPORT_RESTREAMER", False):
+        restreamer = RestreamerSupervisor(
+            restreamer_bin(),
+            onvif_push.restreamer_sock(args.state_dir))
+        restreamer.start()
+
     print(f"Started {len(procs)} components. Ctrl-C to stop all.")
 
     def _on_term(*_):
@@ -146,10 +244,12 @@ def main():
                 if rc is not None:
                     print(f"Component {p.pid} exited rc={rc}; stopping the rest")
                     _stop_all(procs)
+                    restreamer and restreamer.stop()
                     return 1
             time.sleep(1)
     except KeyboardInterrupt:
         _stop_all(procs)
+        restreamer and restreamer.stop()
         return 0
 
 

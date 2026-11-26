@@ -15,6 +15,17 @@
 # The RK3588 NPU backend is not offered in the image -- use scripts/install.sh
 # on that board. See docker/README.md.
 
+# The ONVIF go-mode sidecar, built static so the final image needs no Go toolchain. run_all.py
+# looks for ../go-restreamer/bin/diyport-restreamer relative to diyport/.
+FROM golang:1.27.4-trixie AS gorest
+ARG TARGETARCH
+WORKDIR /src/go-restreamer
+COPY go-restreamer/go.mod go-restreamer/go.sum ./
+RUN go mod download
+COPY go-restreamer/ ./
+RUN GOOS=linux GOARCH="${TARGETARCH:-$(go env GOARCH)}" CGO_ENABLED=0 \
+    go build -trimpath -o /out/diyport-restreamer ./cmd/restreamer
+
 FROM debian:trixie-slim
 
 ARG ACCEL=cpu
@@ -94,6 +105,7 @@ RUN python3 -m venv "$VIRTUAL_ENV" \
  && rm -f /tmp/requirements.txt
 
 WORKDIR /app
+COPY --from=gorest /out/diyport-restreamer /app/go-restreamer/bin/diyport-restreamer
 COPY diyport/ diyport/
 COPY scripts/fetch_models.py scripts/fetch_models.py
 COPY scripts/detector_check.py scripts/detector_check.py

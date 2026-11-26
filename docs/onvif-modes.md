@@ -9,8 +9,23 @@ all of that instance's cameras.
 | `copy` (default) | ffmpeg copies the streams | `avclient.py` | 3 | About 1% of a core, 11-22 MB |
 | `transcode` | GStreamer encodes each channel | `avclient.py` | 1 (2 with shared decode off) | About 8-15% of a core, 130-290 MB |
 | `isolated` | As `transcode` | A process per camera | 1 (2 with shared decode off) | As `transcode`, plus 15 MB |
+| `go` | A Go sidecar (`go-restreamer/`, run by `run_all.py`) pulls and pushes the proven ffmpeg-era channels | The sidecar | As `copy` | |
 
 Move one camera at a time: `copy,<deviceID>=isolated`.
+
+In go mode this process only sends the sidecar `configure_camera` / `remove_camera` over a
+unix socket (`restreamer.sock` in the state dir); shared decode reads the sidecar's DetectServer
+at the same `detect_socket()` path. It needs no gst-launch.
+
+The sidecar binary is built with Go 1.27.4:
+
+```bash
+make -C go-restreamer linux-arm64
+```
+
+That writes `go-restreamer/bin/diyport-restreamer-linux-arm64`. `run_all.py` accepts that name
+or `go-restreamer/bin/diyport-restreamer`, and `DIYPORT_RESTREAMER_BIN` overrides both. The
+Docker image builds it in a Go stage.
 
 The transcode needs GStreamer. Without it, the camera logs an error and uses `copy`:
 
